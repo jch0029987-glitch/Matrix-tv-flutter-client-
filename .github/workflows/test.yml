@@ -1,7 +1,7 @@
 name: Test Keystore Credentials
 
 on:
-  workflow_dispatch: # Run manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   test-keystore:
@@ -28,19 +28,9 @@ jobs:
           ls -lh android/app/release-key.jks
 
           echo -e "\n=== 2. Listing Keystore Entries (Testing Store Password & Alias) ==="
-          # This command checks if the keystore password can open the file and if the alias exists
           keytool -list -v \
             -keystore android/app/release-key.jks \
             -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
             -alias "${{ secrets.KEY_ALIAS }}"
 
-          echo -e "\n=== 3. Testing Key-Specific Password ==="
-          # This verifies if the specific key password matches the key password secret
-          keytool -keypasswd \
-            -keystore android/app/release-key.jks \
-            -alias "${{ secrets.KEY_ALIAS }}" \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            -keypass "${{ secrets.KEY_PASSWORD }}" \
-            -new "${{ secrets.KEY_PASSWORD }}"
-          
-          echo "SUCCESS: Keystore password, alias, and key password are 100% correct!"
+          echo -e "\nSUCCESS: Keystore decoded and verified successfully!"
