@@ -16,8 +16,8 @@ dependencies:
   flutter_riverpod: ^2.5.0
   open_filex: ^4.7.0
   package_info_plus: ^8.1.2
-  matrix: ^0.9.0          # Added missing Matrix SDK package
-  path_provider: ^2.1.2   # Added missing path provider for local caching/updates
+  matrix: ^12.0.0         # Updated to a modern version supporting http ^1.2.0
+  path_provider: ^2.1.2  # Added for local caching/file operations
 
 dev_dependencies:
   flutter_test:
