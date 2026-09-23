@@ -1,12 +1,14 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+// Conditionally import dart:io only for native platforms
+import 'dart:io' if (dart.library.html) 'package:flutter/foundation.dart';
+import 'package:open_filex/open_filex.dart' if (dart.library.html) 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart' if (dart.library.html) 'package:flutter/foundation.dart';
+
 class UpdateService {
-  // Replace with your actual GitHub repo info
   static const String owner = 'jch0029987-glitch';
   static const String repo = 'Matrix-tv-flutter-client-';
 
@@ -14,11 +16,9 @@ class UpdateService {
     try {
       onStatusUpdate('Checking for updates...');
       
-      // 1. Get current app version
       final packageInfo = await PackageInfo.fromPlatform();
-      final currentVersion = packageInfo.version; // e.g. "1.0.0"
+      final currentVersion = packageInfo.version;
 
-      // 2. Query GitHub Releases API (User-Agent is strictly required by GitHub)
       final url = Uri.parse('https://api.github.com/repos/$owner/$repo/releases/latest');
       final response = await http.get(
         url, 
@@ -34,11 +34,15 @@ class UpdateService {
       }
 
       final data = jsonDecode(response.body);
-      final String latestTag = data['tag_name'] ?? ''; // e.g. "v1.0.1" or "1.0.1"
+      final String latestTag = data['tag_name'] ?? '';
       final cleanLatestVersion = latestTag.replaceAll('v', '');
 
       if (_isVersionNewer(currentVersion, cleanLatestVersion)) {
-        // Find the APK asset in the release
+        if (kIsWeb) {
+          onStatusUpdate('New web version available (v$cleanLatestVersion). Refresh browser to update.');
+          return;
+        }
+
         List assets = data['assets'] ?? [];
         String? apkDownloadUrl;
         
@@ -78,6 +82,8 @@ class UpdateService {
   }
 
   static Future<void> _downloadAndInstall(String url, Function(String) onStatusUpdate) async {
+    if (kIsWeb) return; // Safeguard for web
+
     try {
       final client = http.Client();
       final request = http.Request('GET', Uri.parse(url));
@@ -92,8 +98,6 @@ class UpdateService {
         await file.writeAsBytes(bytes);
 
         onStatusUpdate('Installing update...');
-        
-        // Triggers the system package installer via FileProvider
         await OpenFilex.open(filePath);
       } else {
         onStatusUpdate('Download failed. (Code: ${streamedResponse.statusCode})');
