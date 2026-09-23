@@ -2,14 +2,18 @@
 <html>
 <head>
   <base href="$FLUTTER_BASE_HREF">
-  <meta charset="UTF-M">
+  <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Matrix Client hello</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>Matrix TV Client</title>
   <link rel="manifest" href="manifest.json">
+  <!-- Inject Eruda mobile developer console -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>eruda.init();</script>
   <style>
     body {
-      background-color: #121212;
+      background-color: #0b0f19;
       color: #ffffff;
       margin: 0;
       display: flex;
@@ -21,12 +25,6 @@
   </style>
 </head>
 <body>
-  <script>
-    // Forces iOS/WebKit fallback safety wrapper
-    window.addEventListener('load', function() {
-      console.log("Initializing Flutter Web engine...");
-    });
-  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
