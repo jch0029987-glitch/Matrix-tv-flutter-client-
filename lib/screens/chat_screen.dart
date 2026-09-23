@@ -12,11 +12,18 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+  Timeline? _timeline;
 
   @override
   void initState() {
     super.initState();
+    _initTimeline();
+  }
+
+  Future<void> _initTimeline() async {
+    _timeline = await widget.room.getTimeline();
+    if (mounted) setState(() {});
+
     widget.room.client.onSync.stream.listen((_) {
       if (mounted) setState(() {});
     });
@@ -28,7 +35,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _messageController.clear();
     try {
-      await widget.room.sendText(text);
+      await widget.room.sendTextEvent(text); // Updated to Matrix v12 API method
     } catch (e) {
       debugPrint('Failed to send message: $e');
     }
@@ -36,8 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final timeline = widget.room.timeline;
-    final events = timeline?.events ?? [];
+    final events = _timeline?.events ?? [];
 
     return Scaffold(
       appBar: AppBar(
@@ -54,7 +60,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   )
                 : ListView.builder(
-                    controller: _scrollController,
                     reverse: true,
                     padding: const EdgeInsets.all(16.0),
                     itemCount: events.length,
