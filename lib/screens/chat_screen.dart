@@ -23,11 +23,21 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initTimeline() async {
+    // Initialize the timeline with the onUpdate callback
     _timeline = await widget.room.getTimeline(
       onUpdate: () {
         if (mounted) setState(() {});
       },
     );
+
+    // Fetch initial history so the timeline populates immediately
+    await _timeline?.requestHistory();
+
+    // Listen to global client sync events to guarantee UI redraws on new sync data
+    widget.room.client.onSync.stream.listen((_) {
+      if (mounted) setState(() {});
+    });
+
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -50,6 +60,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.clear();
     try {
       await widget.room.sendTextEvent(text);
+      // Force an immediate layout update for the local echo
+      if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Failed to send message: $e');
       if (mounted) {
@@ -87,16 +99,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         )
                       : Scrollbar(
                           controller: _scrollController,
-                          thumbVisibility: true, // Forces the scroll thumb to stay visible
-                          thickness: 8.0, // Makes it easier to see on a TV display
+                          thumbVisibility: true,
+                          thickness: 8.0,
                           radius: const Radius.circular(4),
                           child: ListView.builder(
-                            reverse: true, // Newest messages at the bottom
+                            reverse: true,
                             controller: _scrollController,
                             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                             itemCount: events.length,
                             itemBuilder: (context, index) {
-                              // Correct index mapping for reversed list
                               final event = events[events.length - 1 - index];
                               final isMe = event.senderId == widget.room.client.userID;
 
