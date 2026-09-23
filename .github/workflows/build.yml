@@ -31,16 +31,16 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Decode the base64-encoded keystore secret into android/app/
+      # Decode the base64-encoded keystore secret into android/app/release-key.jks
       - name: Restore Keystore
         run: |
           mkdir -p android/app
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
 
-      # Create key.properties using the absolute workspace path to prevent resolution errors
+      # Create key.properties referencing release-key.jks with absolute path
       - name: Create key.properties
         run: |
-          echo "storeFile=${{ github.workspace }}/android/app/release.jks" >> android/key.properties
+          echo "storeFile=${{ github.workspace }}/android/app/release-key.jks" >> android/key.properties
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
