@@ -11,16 +11,18 @@ import 'screens/room_list_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize SQLite database for Matrix local caching and session persistence
+  final sqfDb = kIsWeb ? null : await _openDatabase();
+
+  // Initialize the client with the required MatrixSdkDatabase instance
   final client = Client(
     'MatrixTVClient',
     database: await MatrixSdkDatabase.init(
       'MatrixTVClient',
-      database: kIsWeb ? null : await _openDatabase(),
+      database: sqfDb,
     ),
   );
 
-  // Restore previous session from the database (if any) and start syncing
+  // Restore previous session from local storage (if any)
   await client.init();
 
   runApp(MatrixApp(client: client));
@@ -47,7 +49,7 @@ class MatrixApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      // Automatically route to RoomListScreen if already logged in
+      // Automatically route to RoomListScreen if a session is already active
       home: client.isLogged() 
           ? RoomListScreen(client: client) 
           : const LoginScreen(),
