@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
@@ -11,14 +12,12 @@ class MatrixService {
 
   Future<bool> login(String username, String password) async {
     try {
-      final directory = await getApplicationSupportDirectory();
-      final dbPath = p.join(directory.path, 'matrix_tv_client.db');
-      final sqfDb = await sqflite.openDatabase(dbPath);
+      final sqfDb = kIsWeb ? null : await _openDatabase();
 
-      // Initialize the client using databaseBuilder as required by the SDK
+      // Initialize the client using the correct 'database:' property and MatrixSdkDatabase.init
       client = Client(
         'MatrixTVClient',
-        databaseBuilder: (_) async => MatrixSdkDatabase(
+        database: await MatrixSdkDatabase.init(
           'MatrixTVClient',
           database: sqfDb,
         ),
@@ -26,7 +25,7 @@ class MatrixService {
       
       await client.init();
       
-      // Resolve and verify homeserver URL
+      // Verify and configure the homeserver URL on the client instance
       await client.checkHomeserver(Uri.parse(homeserverUrl));
       
       // Perform password authentication using AuthenticationUserIdentifier
@@ -40,6 +39,12 @@ class MatrixService {
     } catch (e) {
       return false;
     }
+  }
+
+  Future<sqflite.Database> _openDatabase() async {
+    final directory = await getApplicationSupportDirectory();
+    final dbPath = p.join(directory.path, 'matrix_tv_client.db');
+    return sqflite.openDatabase(dbPath);
   }
 
   Future<List<Room>> getJoinedRooms() async {
