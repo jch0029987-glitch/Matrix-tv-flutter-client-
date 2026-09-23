@@ -1,29 +1,35 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:path/path.dart' as p;
+
 import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize sqflite database for Matrix local caching
-  final directory = await getApplicationSupportDirectory();
-  final dbPath = p.join(directory.path, 'matrix_tv_client.db');
-  final sqfDb = await sqflite.openDatabase(dbPath);
-
+  // Initialize SQLite database for Matrix local caching and session persistence
   final client = Client(
     'MatrixTVClient',
-    databaseBuilder: (_) async => MatrixSdkDatabase.init(
+    database: await MatrixSdkDatabase.init(
       'MatrixTVClient',
-      database: sqfDb,
+      database: kIsWeb ? null : await _openDatabase(),
     ),
   );
+
+  // Restore previous session from the database (if any) and start syncing
   await client.init();
 
   runApp(MatrixApp(client: client));
+}
+
+Future<sqflite.Database> _openDatabase() async {
+  final directory = await getApplicationSupportDirectory();
+  final dbPath = p.join(directory.path, 'matrix_tv_client.db');
+  return sqflite.openDatabase(dbPath);
 }
 
 class MatrixApp extends StatelessWidget {
@@ -41,7 +47,7 @@ class MatrixApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      // Check if user session is already active via isLogged()
+      // Automatically route to RoomListScreen if already logged in
       home: client.isLogged() 
           ? RoomListScreen(client: client) 
           : const LoginScreen(),
