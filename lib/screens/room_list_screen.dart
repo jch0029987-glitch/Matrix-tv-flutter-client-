@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 import 'settings_screen.dart'; // Imports your existing settings screen
+import 'chat_screen.dart';    // Imports your chat timeline screen
 
 class RoomListScreen extends StatefulWidget {
   final Client client;
@@ -70,8 +71,13 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     child: InkWell(
                       autofocus: index == 0, // Auto-focus the very first room on load
                       onTap: () {
-                        // TODO: Navigate to your Chat/Timeline screen for this room
-                        debugPrint('Selected room: ${room.getLocalizedDisplayname()}');
+                        // Navigate to the Chat/Timeline screen for this room
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(room: room),
+                          ),
+                        );
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
