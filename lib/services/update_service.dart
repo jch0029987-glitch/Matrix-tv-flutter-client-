@@ -78,7 +78,8 @@ class UpdateService {
       final streamedResponse = await client.send(request);
 
       if (streamedResponse.statusCode == 200) {
-        final dir = await getExternalCacheDirectory() ?? await getApplicationCacheDirectory();
+        // Fixed: Use getTemporaryDirectory() instead of non-existent methods
+        final dir = await getTemporaryDirectory();
         final filePath = '${dir.path}/update.apk';
         final file = File(filePath);
 
