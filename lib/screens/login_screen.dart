@@ -11,7 +11,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _homeserverController = TextEditingController(text: 'https://matrix-client.matrix.org');
+  final _homeserverController = TextEditingController(text: 'https://matrix.yourdomain.com');
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   
@@ -29,10 +29,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final homeserverUri = Uri.parse(_homeserverController.text.trim());
       await widget.client.checkHomeserver(homeserverUri);
       
-      // Perform password authentication on the main client instance
+      // Perform password authentication using standard Matrix identifier map format
       await widget.client.login(
         LoginType.mLoginPassword,
-        identifier: AuthenticationIdentifier(user: _usernameController.text.trim()),
+        identifier: AuthenticationIdentifier.fromJson({
+          'type': 'm.id.user',
+          'user': _usernameController.text.trim(),
+        }),
         password: _passwordController.text,
       );
 
