@@ -1,4 +1,4 @@
-name: Build and Release Android TV APK
+name: Build, Release & Deploy PWA
 
 on:
   push:
@@ -6,12 +6,19 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  build:
-    name: Build Optimized Release APK
+  build_all:
+    name: Build APK & Web PWA
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,13 +38,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Decode the base64-encoded keystore secret into android/app/release-key.jks
+      # 1. Restore Keystore & Create key.properties for Android APK
       - name: Restore Keystore
         run: |
           mkdir -p android/app
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
 
-      # Create key.properties referencing release-key.jks with absolute path
       - name: Create key.properties
         run: |
           echo "storeFile=${{ github.workspace }}/android/app/release-key.jks" >> android/key.properties
@@ -45,11 +51,24 @@ jobs:
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
 
-      # Build optimized release APK targeting armv7a with R8 shrinking enabled
+      # 2. Build Optimized Release APK targeting armv7a
       - name: Build Optimized APK Release
         run: flutter build apk --release --target-platform android-arm
 
-      # Upload release APKs safely using a wildcard pattern
+      # 3. Build Web App (with correct base-href for your repository name)
+      - name: Build Web PWA
+        run: flutter build web --release --base-href "/Matrix-tv-flutter-client-/"
+
+      # 4. Setup Pages Artifact
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'build/web'
+
+      # 5. Upload release APK to GitHub Releases
       - name: Upload Release APK to GitHub
         uses: softprops/action-gh-release@v1
         with:
@@ -60,3 +79,12 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 6. Deploy Web Build to GitHub Pages
+  deploy_web:
+    needs: build_all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
