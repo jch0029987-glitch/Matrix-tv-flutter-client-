@@ -28,7 +28,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web PWA
-        run: flutter build web --release --web-renderer auto --base-href "/Matrix-tv-flutter-client-/"
+        run: flutter build web --release  --base-href "/Matrix-tv-flutter-client-/"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
