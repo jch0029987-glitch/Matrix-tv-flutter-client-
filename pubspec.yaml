@@ -20,6 +20,8 @@ dependencies:
   path_provider: ^2.1.2
   sqflite: ^2.3.2
   path: ^1.9.0
+  shelf: ^1.4.1
+  shelf_static: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -28,3 +30,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/web/index.html
