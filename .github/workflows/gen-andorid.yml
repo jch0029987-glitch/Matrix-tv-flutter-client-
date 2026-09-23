@@ -20,7 +20,7 @@ jobs:
 
       - name: Run Flutter Create
         run: |
-          flutter create --org com.jeremy --platforms android --project-name pixel_tv_commander .
+          flutter create --org com.jeremy --platforms android --project-name flutter_matrix_client .
 
       - name: Commit and Push Android Structure
         uses: stefanzweifel/git-auto-commit-action@v5
