@@ -76,7 +76,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               autofocus: true,
               child: Builder(
                 builder: (context) {
-                  finalhasFocus = Focus.of(context).hasFocus;
+                  final hasFocus = Focus.of(context).hasFocus;
                   return Card(
                     color: hasFocus ? const Color(0xFF03DAC6) : const Color(0xFF2C2C2C),
                     child: ListTile(
@@ -115,7 +115,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             Focus(
               child: Builder(
                 builder: (context) {
-                  finalhasFocus = Focus.of(context).hasFocus;
+                  final hasFocus = Focus.of(context).hasFocus;
                   return Card(
                     color: hasFocus ? Colors.redAccent : const Color(0xFF2C2C2C),
                     child: ListTile(
