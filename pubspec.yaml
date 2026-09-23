@@ -15,7 +15,7 @@ dependencies:
   http: ^1.2.0
   flutter_riverpod: ^2.5.0
   open_filex: ^4.7.0
-
+  package_info_plus: ^8.1.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
