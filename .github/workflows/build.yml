@@ -61,7 +61,7 @@ jobs:
       - name: Add Web Platform
         run: flutter create . --platforms=web
 
-      # 4. Commit and push the auto-generated web/ directory back to main
+      # 4. Commit and push the auto-generated web/ directory back to main branch explicitly
       - name: Commit web directory
         run: |
           git config --global user.name 'github-actions[bot]'
@@ -71,7 +71,7 @@ jobs:
             echo "No changes to commit in web/"
           else
             git commit -m "chore: auto-generate web platform files [skip ci]"
-            git push origin HEAD:main
+            git push origin HEAD:refs/heads/main
           fi
 
       # 5. Build Web App (with correct base-href for your repository name)
