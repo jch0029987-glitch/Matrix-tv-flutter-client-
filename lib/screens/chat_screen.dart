@@ -31,8 +31,8 @@ class _ChatScreenState extends State<ChatScreen> {
       },
     );
 
-    // Listen to live room events so the open chat window updates instantly
-    widget.room.onRoomEvent.stream.listen((event) {
+    // Listen to live room update stream so the open chat window updates instantly
+    widget.room.onUpdate.stream.listen((_) {
       if (mounted) {
         setState(() {});
       }
