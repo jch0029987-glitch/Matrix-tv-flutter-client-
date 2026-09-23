@@ -3,7 +3,7 @@ name: Deploy Web PWA
 on:
   push:
     branches: [ main ]
-workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -29,7 +29,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web PWA
-        run: flutter build web --release  --base-href "/Matrix-tv-flutter-client-/"
+        run: flutter build web --release --base-href "/Matrix-tv-futter-client-/"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -44,7 +44,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.target_url }}
-    runs-on: steps.deployment-runs-on || 'ubuntu-latest'
+    runs-on: ubuntu-latest
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
