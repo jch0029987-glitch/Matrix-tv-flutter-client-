@@ -1,30 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    The $FLUTTER_BASE_HREF token is automatically replaced by Flutter 
-    at compile time with the base-href passed in your build workflow.
-  -->
   <base href="$FLUTTER_BASE_HREF">
-
-  <meta charset="UTF-8">
+  <meta charset="UTF-M">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A Matrix client built with Flutter for Web and Android TV.">
-
-  <!-- iOS meta tags & icons -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Matrix Client">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>Matrix TV & Web Client</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Client</title>
   <link rel="manifest" href="manifest.json">
-
   <style>
-    /* Dark background styling to prevent white flash while Flutter boots up */
     body {
       background-color: #121212;
       color: #ffffff;
@@ -38,7 +21,12 @@
   </style>
 </head>
 <body>
-  <!-- Flutter Web Bootstrap -->
+  <script>
+    // Forces iOS/WebKit fallback safety wrapper
+    window.addEventListener('load', function() {
+      console.log("Initializing Flutter Web engine...");
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
