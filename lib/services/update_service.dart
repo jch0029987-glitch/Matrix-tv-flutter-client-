@@ -18,12 +18,18 @@ class UpdateService {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version; // e.g. "1.0.0"
 
-      // 2. Query GitHub Releases API
+      // 2. Query GitHub Releases API (User-Agent is strictly required by GitHub)
       final url = Uri.parse('https://api.github.com/repos/$owner/$repo/releases/latest');
-      final response = await http.get(url, headers: {'Accept': 'application/vnd.github.v3+json'});
+      final response = await http.get(
+        url, 
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Matrix-TV-Client',
+        },
+      );
 
       if (response.statusCode != 200) {
-        onStatusUpdate('Failed to check for updates.');
+        onStatusUpdate('Failed to check for updates. (Code: ${response.statusCode})');
         return;
       }
 
@@ -78,7 +84,6 @@ class UpdateService {
       final streamedResponse = await client.send(request);
 
       if (streamedResponse.statusCode == 200) {
-        // Fixed: Use getTemporaryDirectory() instead of non-existent methods
         final dir = await getTemporaryDirectory();
         final filePath = '${dir.path}/update.apk';
         final file = File(filePath);
@@ -91,7 +96,7 @@ class UpdateService {
         // Triggers the system package installer via FileProvider
         await OpenFilex.open(filePath);
       } else {
-        onStatusUpdate('Download failed.');
+        onStatusUpdate('Download failed. (Code: ${streamedResponse.statusCode})');
       }
     } catch (e) {
       onStatusUpdate('Installation error: $e');
