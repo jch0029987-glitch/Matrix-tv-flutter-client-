@@ -62,7 +62,7 @@ Future<void> _startLocalWebserver() async {
 
     var handler = const shelf.Pipeline()
         .addMiddleware(shelf.logRequests())
-        .handler(staticHandler);
+        .addHandler(staticHandler);
 
     // 4. Bind to port 8086 across all interfaces for local/remote access
     final server = await io.serve(handler, '0.0.0.0', 8086);
