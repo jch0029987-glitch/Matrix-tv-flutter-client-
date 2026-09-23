@@ -15,9 +15,10 @@ class MatrixService {
       final dbPath = p.join(directory.path, 'matrix_tv_client.db');
       final sqfDb = await sqflite.openDatabase(dbPath);
 
+      // Initialize the client using databaseBuilder as required by the SDK
       client = Client(
         'MatrixTVClient',
-        databaseBuilder: (_) async => MatrixSdkDatabase.init(
+        databaseBuilder: (_) async => MatrixSdkDatabase(
           'MatrixTVClient',
           database: sqfDb,
         ),
@@ -25,15 +26,14 @@ class MatrixService {
       
       await client.init();
       
-      // Corrected parameters for Matrix SDK v12 login
+      // Resolve and verify homeserver URL
+      await client.checkHomeserver(Uri.parse(homeserverUrl));
+      
+      // Perform password authentication using AuthenticationUserIdentifier
       await client.login(
         LoginType.mLoginPassword,
-        identifier: AuthenticationIdentifier(
-          user: username,
-          type: AuthenticationIdentifier.idTypeUser,
-        ),
+        identifier: AuthenticationUserIdentifier(user: username),
         password: password,
-        baseUrl: Uri.parse(homeserverUrl),
       );
 
       return client.isLogged();
