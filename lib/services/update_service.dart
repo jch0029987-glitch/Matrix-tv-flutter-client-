@@ -8,7 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 class UpdateService {
   // Replace with your actual GitHub repo info
   static const String owner = 'jch0029987-glitch';
-  static const String repo = 'Matrix-tv-flutter-matrix-client-';
+  static const String repo = 'Matrix-tv-flutter-client-';
 
   static Future<void> checkForUpdates({required Function(String) onStatusUpdate}) async {
     try {
