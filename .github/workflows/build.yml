@@ -1,4 +1,4 @@
-name: Build, Release & Deploy PWA
+name: Build & Release Android APK
 
 on:
   push:
@@ -8,22 +8,14 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
 
 jobs:
-  build_all:
-    name: Build APK & Web PWA
+  build_apk:
+    name: Build & Release APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -57,37 +49,7 @@ jobs:
       - name: Build Optimized APK Release
         run: flutter build apk --release --target-platform android-arm
 
-      # 3. Enable Web Platform (Generates the web/ directory)
-      - name: Add Web Platform
-        run: flutter create . --platforms=web
-
-      # 4. Commit and push the auto-generated web/ directory back to main branch explicitly
-      - name: Commit web directory
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add web/
-          if git diff --staged --quiet; then
-            echo "No changes to commit in web/"
-          else
-            git commit -m "chore: auto-generate web platform files [skip ci]"
-            git push origin HEAD:refs/heads/main
-          fi
-
-      # 5. Build Web App (with correct base-href for your repository name)
-      - name: Build Web PWA
-        run: flutter build web --release --base-href "/Matrix-tv-flutter-client-/"
-
-      # 6. Setup Pages Artifact
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: 'build/web'
-
-      # 7. Upload release APK to GitHub Releases
+      # 3. Upload release APK to GitHub Releases
       - name: Upload Release APK to GitHub
         uses: softprops/action-gh-release@v1
         with:
@@ -98,12 +60,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # 8. Deploy Web Build to GitHub Pages
-  deploy_web:
-    needs: build_all
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
