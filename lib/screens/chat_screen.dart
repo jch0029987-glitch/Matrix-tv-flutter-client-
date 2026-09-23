@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -30,7 +31,14 @@ class _ChatScreenState extends State<ChatScreen> {
       },
     );
 
-    // Listen to global client sync stream as a fallback guarantee for state transitions
+    // Listen to live room events so the open chat window updates instantly
+    widget.room.onRoomEvent.stream.listen((event) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
+    // Fallback sync stream listener
     widget.room.client.onSync.stream.listen((_) {
       if (mounted) setState(() {});
     });
@@ -55,11 +63,12 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty) return;
 
     _messageController.clear();
+    
+    // Force immediate frame redraw to show the local echo optimistically
+    if (mounted) setState(() {});
+
     try {
-      // v12 automatically handles local echo insertion into the timeline
       await widget.room.sendTextEvent(text);
-      
-      // Force immediate frame redraw to show the local echo optimistically
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Failed to send message: $e');
@@ -96,55 +105,86 @@ class _ChatScreenState extends State<ChatScreen> {
                             style: TextStyle(color: Colors.grey),
                           ),
                         )
-                      : Scrollbar(
-                          controller: _scrollController,
-                          thumbVisibility: true,
-                          thickness: 8.0,
-                          radius: const Radius.circular(4),
-                          child: ListView.builder(
-                            reverse: true,
+                      : Focus(
+                          autofocus: true,
+                          onKeyEvent: (node, event) {
+                            if (event is KeyDownEvent || event is KeyRepeatEvent) {
+                              if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                                final target = (_scrollController.offset + 80).clamp(
+                                  _scrollController.position.minScrollExtent,
+                                  _scrollController.position.maxScrollExtent,
+                                );
+                                _scrollController.animateTo(
+                                  target,
+                                  duration: const Duration(milliseconds: 50),
+                                  curve: Curves.easeOut,
+                                );
+                                return KeyEventResult.handled;
+                              } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                                final target = (_scrollController.offset - 80).clamp(
+                                  _scrollController.position.minScrollExtent,
+                                  _scrollController.position.maxScrollExtent,
+                                );
+                                _scrollController.animateTo(
+                                  target,
+                                  duration: const Duration(milliseconds: 50),
+                                  curve: Curves.easeOut,
+                                );
+                                return KeyEventResult.handled;
+                              }
+                            }
+                            return KeyEventResult.ignored;
+                          },
+                          child: Scrollbar(
                             controller: _scrollController,
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                            itemCount: events.length,
-                            itemBuilder: (context, index) {
-                              final event = events[events.length - 1 - index];
-                              final isMe = event.senderId == widget.room.client.userID;
+                            thumbVisibility: true,
+                            thickness: 8.0,
+                            radius: const Radius.circular(4),
+                            child: ListView.builder(
+                              reverse: true,
+                              controller: _scrollController,
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                              itemCount: events.length,
+                              itemBuilder: (context, index) {
+                                final event = events[events.length - 1 - index];
+                                final isMe = event.senderId == widget.room.client.userID;
 
-                              return Align(
-                                alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                                child: Container(
-                                  constraints: BoxConstraints(
-                                    maxWidth: MediaQuery.of(context).size.width * 0.70,
-                                  ),
-                                  margin: const EdgeInsets.symmetric(vertical: 4.0),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-                                  decoration: BoxDecoration(
-                                    color: isMe ? Colors.teal.shade700 : Colors.grey.shade800,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (!isMe) ...[
-                                        Text(
-                                          event.senderFromMemoryOrFallback.calcDisplayname(),
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.tealAccent,
-                                            fontWeight: FontWeight.bold,
+                                return Align(
+                                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                  child: Container(
+                                    constraints: BoxConstraints(
+                                      maxWidth: MediaQuery.of(context).size.width * 0.70,
+                                    ),
+                                    margin: const EdgeInsets.symmetric(vertical: 4.0),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                                    decoration: BoxDecoration(
+                                      color: isMe ? Colors.teal.shade700 : Colors.grey.shade800,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (!isMe) ...[
+                                          Text(
+                                            event.senderFromMemoryOrFallback.calcDisplayname(),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.tealAccent,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
+                                          const SizedBox(height: 2),
+                                        ],
+                                        Text(
+                                          event.body,
+                                          style: const TextStyle(color: Colors.white, fontSize: 16),
                                         ),
-                                        const SizedBox(height: 2),
                                       ],
-                                      Text(
-                                        event.body,
-                                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
                         ),
                 ),
