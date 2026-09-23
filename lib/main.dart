@@ -1,31 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart' as sqflite;
+import 'package:path/path.dart' as p;
 import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize the Matrix SDK client storage/database
-  final client = Client('MatrixTVClient');
+  // Initialize sqflite database for Matrix local caching
+  final dbDir = await getApplicationSupportDirectory();
+  final dbPath = p.join(dbDir.path, 'matrix_tv_client.db');
+  final sqfDb = await sqflite.openDatabase(dbPath);
+
+  final client = Client(
+    'MatrixTVClient',
+    databaseBuilder: (_) async => MatrixSdkDatabase('MatrixTVClient', database: sqfDb),
+  );
   await client.init();
 
-  runApp(
-    const ProviderScope(
-      child: MatrixApp(),
-    ),
-  );
+  runApp(MatrixApp(client: client));
 }
 
 class MatrixApp extends StatelessWidget {
-  const MatrixApp({super.key});
+  final Client client;
+  const MatrixApp({super.key, required this.client});
 
   @override
   Widget build(BuildContext context) {
-    // Check if a client is already logged in from a previous session
-    final client = Client('MatrixTVClient');
-    
     return MaterialApp(
       title: 'Matrix TV Client',
       debugShowCheckedModeBanner: false,
@@ -35,8 +38,8 @@ class MatrixApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      // If already logged in, skip login screen and go straight to rooms
-      home: client.isLoggedIn() 
+      // Check if user session is already active
+      home: client.isLogged() 
           ? RoomListScreen(client: client) 
           : const LoginScreen(),
     );
