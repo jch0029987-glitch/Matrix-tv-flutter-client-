@@ -23,17 +23,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initTimeline() async {
-    // Initialize the timeline with the onUpdate callback
+    // Initialize the timeline with the v12 onUpdate callback
     _timeline = await widget.room.getTimeline(
       onUpdate: () {
         if (mounted) setState(() {});
       },
     );
 
-    // Fetch initial history so the timeline populates immediately
-    await _timeline?.requestHistory();
-
-    // Listen to global client sync events to guarantee UI redraws on new sync data
+    // Listen to global client sync stream as a fallback guarantee for state transitions
     widget.room.client.onSync.stream.listen((_) {
       if (mounted) setState(() {});
     });
@@ -59,8 +56,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _messageController.clear();
     try {
+      // v12 automatically handles local echo insertion into the timeline
       await widget.room.sendTextEvent(text);
-      // Force an immediate layout update for the local echo
+      
+      // Force immediate frame redraw to show the local echo optimistically
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Failed to send message: $e');
