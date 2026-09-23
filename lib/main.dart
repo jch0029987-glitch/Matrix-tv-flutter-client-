@@ -10,13 +10,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize sqflite database for Matrix local caching
-  final dbDir = await getApplicationSupportDirectory();
-  final dbPath = p.join(dbDir.path, 'matrix_tv_client.db');
+  final directory = await getApplicationSupportDirectory();
+  final dbPath = p.join(directory.path, 'matrix_tv_client.db');
   final sqfDb = await sqflite.openDatabase(dbPath);
 
   final client = Client(
     'MatrixTVClient',
-    databaseBuilder: (_) async => MatrixSdkDatabase('MatrixTVClient', database: sqfDb),
+    databaseBuilder: (_) async => MatrixSdkDatabase.init(
+      'MatrixTVClient',
+      database: sqfDb,
+    ),
   );
   await client.init();
 
@@ -38,7 +41,7 @@ class MatrixApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      // Check if user session is already active
+      // Check if user session is already active via isLogged()
       home: client.isLogged() 
           ? RoomListScreen(client: client) 
           : const LoginScreen(),
