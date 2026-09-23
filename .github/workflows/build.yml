@@ -31,25 +31,25 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Decode the base64-encoded keystore secret
+      # Decode the base64-encoded keystore secret into android/app/
       - name: Restore Keystore
         run: |
           mkdir -p android/app
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.jks
 
-      # Create key.properties in the android/ root folder
+      # Create key.properties using the absolute workspace path to prevent resolution errors
       - name: Create key.properties
         run: |
-          echo "storeFile=app/release.jks" >> android/key.properties
+          echo "storeFile=${{ github.workspace }}/android/app/release.jks" >> android/key.properties
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
 
-      # Build optimized release APK targeting armv7a with R8 code/resource shrinking enabled
+      # Build optimized release APK targeting armv7a with R8 shrinking enabled
       - name: Build Optimized APK Release
         run: flutter build apk --release --target-platform android-arm
 
-      # Upload any release APK found in the output directory safely using a wildcard
+      # Upload release APKs safely using a wildcard pattern
       - name: Upload Release APK to GitHub
         uses: softprops/action-gh-release@v1
         with:
