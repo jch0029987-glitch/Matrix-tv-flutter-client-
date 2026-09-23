@@ -37,7 +37,8 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => RoomListScreen(matrixService: service),
+          // Fixed: pass 'client' instead of 'matrixService' to match RoomListScreen constructor
+          builder: (context) => RoomListScreen(client: service.client),
         ),
       );
     } else {
