@@ -11,22 +11,29 @@ class MatrixService {
 
   Future<bool> login(String username, String password) async {
     try {
-      final dbDir = await getApplicationSupportDirectory();
-      final dbPath = p.join(dbDir.path, 'matrix_tv_client.db');
+      final directory = await getApplicationSupportDirectory();
+      final dbPath = p.join(directory.path, 'matrix_tv_client.db');
       final sqfDb = await sqflite.openDatabase(dbPath);
 
       client = Client(
         'MatrixTVClient',
-        databaseBuilder: (_) async => MatrixSdkDatabase('MatrixTVClient', database: sqfDb),
+        databaseBuilder: (_) async => MatrixSdkDatabase.init(
+          'MatrixTVClient',
+          database: sqfDb,
+        ),
       );
       
       await client.init();
       
+      // Corrected parameters for Matrix SDK v12 login
       await client.login(
         LoginType.mLoginPassword,
-        identifier: AuthenticationIdentifier.user(username),
+        identifier: AuthenticationIdentifier(
+          user: username,
+          type: AuthenticationIdentifier.idTypeUser,
+        ),
         password: password,
-        url: Uri.parse(homeserverUrl),
+        baseUrl: Uri.parse(homeserverUrl),
       );
 
       return client.isLogged();
