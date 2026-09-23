@@ -23,7 +23,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initTimeline() async {
-    // Pass onUpdate to the timeline so local/remote event changes trigger a redraw
     _timeline = await widget.room.getTimeline(
       onUpdate: () {
         if (mounted) setState(() {});
@@ -63,7 +62,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Filter events properly for standard text messages
     final events = _timeline?.events
             .where((e) => 
                 (e.messageType == MessageTypes.Text || e.messageType == MessageTypes.Notice) && 
@@ -89,14 +87,17 @@ class _ChatScreenState extends State<ChatScreen> {
                         )
                       : Scrollbar(
                           controller: _scrollController,
-                          thumbVisibility: true,
+                          thumbVisibility: true, // Forces the scroll thumb to stay visible
+                          thickness: 8.0, // Makes it easier to see on a TV display
+                          radius: const Radius.circular(4),
                           child: ListView.builder(
-                            reverse: true, // Keeps newest messages at the bottom
+                            reverse: true, // Newest messages at the bottom
                             controller: _scrollController,
                             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                             itemCount: events.length,
                             itemBuilder: (context, index) {
-                              final event = events[index];
+                              // Correct index mapping for reversed list
+                              final event = events[events.length - 1 - index];
                               final isMe = event.senderId == widget.room.client.userID;
 
                               return Align(
@@ -145,7 +146,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       Expanded(
                         child: TextField(
                           controller: _messageController,
-                          autofocus: false, // Prevents D-pad hijacking on TV
+                          autofocus: false,
                           style: const TextStyle(color: Colors.white),
                           decoration: const InputDecoration(
                             hintText: 'Type a message...',
