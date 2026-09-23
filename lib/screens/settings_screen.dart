@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:matrix/matrix.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/update_service.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  final Client client;
+
+  const SettingsScreen({super.key, required this.client});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -127,7 +130,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        'Disconnect session from homeserver',
+                        'Disconnect session from homeserver (${widget.client.userID ?? ""})',
                         style: TextStyle(
                           color: hasFocus ? Colors.white70 : Colors.white54,
                         ),
@@ -136,13 +139,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         Icons.logout,
                         color: hasFocus ? Colors.white : Colors.redAccent,
                       ),
-                      onTap: () {
-                        // Navigate back to Login and clear route stack
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(builder: (context) => const LoginScreen()),
-                          (route) => false,
-                        );
+                      onTap: () async {
+                        await widget.client.logout();
+                        if (context.mounted) {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                            (route) => false,
+                          );
+                        }
                       },
                     ),
                   );
