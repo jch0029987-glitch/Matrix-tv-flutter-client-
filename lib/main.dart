@@ -52,7 +52,7 @@ class MatrixApp extends StatelessWidget {
       // Automatically route to RoomListScreen if a session is already active
       home: client.isLogged() 
           ? RoomListScreen(client: client) 
-          : const LoginScreen(),
+          : LoginScreen(client: client),
     );
   }
 }
