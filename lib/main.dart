@@ -11,8 +11,9 @@ import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
 import 'services/app_webserver.dart';
 
-// Native platform channel bridge for direct screen drawing
+// Native platform channel bridges for direct screen drawing and background persistence
 const MethodChannel _nativeNotificationChannel = MethodChannel('com.jeremy.flutter_matrix_client/notifications');
+const MethodChannel _foregroundServiceChannel = MethodChannel('com.jeremy.flutter_matrix_client/foreground');
 
 Future<void> showScreenOverlay(String title, String body) async {
   try {
@@ -25,6 +26,17 @@ Future<void> showScreenOverlay(String title, String body) async {
   } catch (e, stackTrace) {
     debugPrint('❌ [FlutterBridge] Failed to draw overlay banner: $e');
     debugPrint('❌ [FlutterBridge] StackTrace: $stackTrace');
+  }
+}
+
+Future<void> startNativeForegroundService() async {
+  try {
+    debugPrint('🚀 [ForegroundService] Requesting native background keeper service start...');
+    await _foregroundServiceChannel.invokeMethod('startForegroundService');
+    debugPrint('✅ [ForegroundService] Native background keeper service started successfully.');
+  } catch (e, stackTrace) {
+    debugPrint('⚠️ [ForegroundService] Failed to start native foreground service: $e');
+    debugPrint('⚠️ [ForegroundService] StackTrace: $stackTrace');
   }
 }
 
@@ -74,7 +86,7 @@ void main() async {
   // Bind client to web server for API endpoints (/api/rooms, /api/send_message, etc.)
   AppWebserver().setClient(client);
 
-  // 2. Auto-start local HTTP server on boot
+  // 2. Auto-start local HTTP server and native foreground service on boot
   try {
     final prefs = await SharedPreferences.getInstance();
     final bool autoStartOnLogin = prefs.getBool('autostart_on_login') ?? true;
@@ -84,10 +96,13 @@ void main() async {
       if (!webserver.isRunning) {
         await webserver.start();
         debugPrint('🚀 [Webserver] Local web server successfully auto-started on port ${webserver.port}.');
+        
+        // Start native foreground service to keep everything alive over full-screen media
+        await startNativeForegroundService();
       }
     }
   } catch (e) {
-    debugPrint('⚠️ [Webserver] Failed to auto-start web server on boot: $e');
+    debugPrint('⚠️ [Webserver] Failed to auto-start web server or foreground service on boot: $e');
   }
 
   debugPrint('📺 [AppBoot] Running MaterialApp root...');
