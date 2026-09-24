@@ -295,12 +295,31 @@
       }
     }
 
-    function openChat(roomId, roomName) {
+    async function openChat(roomId, roomName) {
       currentRoomId = roomId;
       currentRoomName = roomName;
       document.getElementById('activeRoomTitle').innerText = roomName;
-      document.getElementById('chatHistory').innerHTML = `<p class="status-msg">Connected to ${escapeHtml(roomName)}</p>`;
+      
+      const historyContainer = document.getElementById('chatHistory');
+      historyContainer.innerHTML = `<p class="status-msg">Loading message history...</p>`;
       switchView('chatView');
+
+      try {
+        const res = await fetch(`/api/messages?roomId=${encodeURIComponent(roomId)}`);
+        const messages = await res.json();
+        
+        historyContainer.innerHTML = '';
+        if (!Array.isArray(messages) || messages.length === 0) {
+          historyContainer.innerHTML = `<p class="status-msg">No messages in this timeline yet.</p>`;
+          return;
+        }
+
+        messages.forEach(msg => {
+          appendMessageBubble(msg.sender, msg.body, msg.isSelf);
+        });
+      } catch (e) {
+        historyContainer.innerHTML = `<p class="status-msg" style="color:red;">Failed to load chat history.</p>`;
+      }
     }
 
     async function sendMessage() {
@@ -373,8 +392,10 @@
     const eventSource = new EventSource('/api/events');
     eventSource.onmessage = function(event) {
       const data = JSON.parse(event.data);
-      if (data.type === 'room_event' && data.roomId === currentRoomId && data.sender !== '@jeremy:localhost') {
-        appendMessageBubble(data.sender, data.body, false);
+      if (data.type === 'room_event' && data.roomId === currentRoomId) {
+        if (!data.isSelf) {
+          appendMessageBubble(data.sender, data.body, false);
+        }
       }
     };
 
