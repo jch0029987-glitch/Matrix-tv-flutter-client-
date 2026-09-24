@@ -50,6 +50,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Foreground Service for rendering direct WindowManager screen overlays -->
+        <service
+            android:name=".ScreenOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
         <!-- FileProvider required to securely pass update APK paths to the system installer -->
         <provider
             android:name="androidx.core.content.FileProvider"
