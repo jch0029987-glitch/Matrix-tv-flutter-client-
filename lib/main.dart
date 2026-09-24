@@ -77,7 +77,6 @@ Future<void> _initializeOverlayWindow() async {
       }
     }
 
-    // Properly invoke isActive() as an async method
     final active = await FlutterOverlayWindow.isActive();
     if (!active) {
       await FlutterOverlayWindow.showOverlay(
@@ -107,7 +106,6 @@ class _MatrixAppState extends State<MatrixApp> {
   void initState() {
     super.initState();
     
-    // Perform a background permission check once the app frame mounts if logged in
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (widget.client.isLogged()) {
         try {
@@ -115,7 +113,6 @@ class _MatrixAppState extends State<MatrixApp> {
           final granted = await AppWebserver().requestPermission();
           debugPrint('🔔 Startup permission check result: $granted');
           
-          // Ensure overlay is active if logged in
           await _initializeOverlayWindow();
         } catch (e) {
           debugPrint('❌ Failed to verify permission on boot: $e');
@@ -126,7 +123,6 @@ class _MatrixAppState extends State<MatrixApp> {
 
   @override
   Widget build(BuildContext context) {
-    context; // reference to prevent lints if any
     return MaterialApp(
       title: 'Matrix TV Client',
       debugShowCheckedModeBanner: false,
@@ -143,22 +139,94 @@ class _MatrixAppState extends State<MatrixApp> {
   }
 }
 
-/// Mandatory background entry point for flutter_overlay_window
+/// Reactive overlay entry point for flutter_overlay_window
 @pragma("vm:entry-point")
 void overlayMain() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
     const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: Material(
-        color: Colors.transparent,
-        child: Center(
-          child: Text(
-            'Matrix Notification Overlay',
-            style: TextStyle(color: Colors.white, fontSize: 14),
-          ),
-        ),
-      ),
+      home: OverlayControllerWidget(),
     ),
   );
+}
+
+class OverlayControllerWidget extends StatefulWidget {
+  const OverlayControllerWidget({super.key});
+
+  @override
+  State<OverlayControllerWidget> createState() => _OverlayControllerWidgetState();
+}
+
+class _OverlayControllerWidgetState extends State<OverlayControllerWidget> {
+  String _title = 'Matrix TV';
+  String _body = 'Listening for messages...';
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for incoming payload updates dispatched from the main isolate
+    FlutterOverlayWindow.dataStream.listen((data) {
+      if (data is Map) {
+        setState(() {
+          _title = data['title']?.toString() ?? 'Matrix TV';
+          _body = data['body']?.toString() ?? '';
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.teal, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.teal.withOpacity(0.3),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.notifications_active, color: Colors.teal, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _title,
+                    style: const TextStyle(
+                      color: Colors.tealAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _body,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
