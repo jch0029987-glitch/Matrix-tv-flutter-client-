@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
-import 'package:path_provider/path_provider.dart';
 
 class AppWebserver {
   static final AppWebserver _instance = AppWebserver._internal();
@@ -27,19 +26,19 @@ class AppWebserver {
     _matrixClient = client;
     
     _matrixSub?.cancel();
-    _matrixSub = _matrixClient!.onSync.stream.listen((syncUpdate) {
+    // Listen to client-wide incoming events instead of iterating missing timeline getters
+    _matrixSub = _matrixClient$.onEvent.stream.listen((update) {
       if (_matrixClient == null) return;
-      for (var room in _matrixClient!.rooms) {
-        for (var event in room.timeline) {
-          _eventController.add({
-            'type': 'room_event',
-            'roomId': room.id,
-            'roomName': room.getLocalizedDisplayname(),
-            'sender': event.senderId,
-            'body': event.body,
-            'timestamp': event.originServerTs.millisecondsSinceEpoch,
-          });
-        }
+      final room = _matrixClient!.getRoomById(update.roomId ?? '');
+      if (room != null && update.content.containsKey('body')) {
+        _eventController.add({
+          'type': 'room_event',
+          'roomId': room.id,
+          'roomName': room.getLocalizedDisplayname(),
+          'sender': update.senderId ?? 'Unknown',
+          'body': update.content['body'] ?? '',
+          'timestamp': update.originServerTs?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch,
+        });
       }
     });
   }
@@ -87,7 +86,7 @@ class AppWebserver {
               } catch (_) {}
             });
 
-            request.connectionInfo?.socket.done.then((_) {
+            request.done.then((_) {
               subscription.cancel();
             });
             return;
@@ -120,7 +119,8 @@ class AppWebserver {
             if (roomId != null && message != null && _matrixClient != null) {
               final room = _matrixClient!.getRoomById(roomId);
               if (room != null) {
-                await room.sendText(message);
+                // Correct method call for matrix SDK text transmission
+                await room.sendTextMessage(message);
                 request.response.statusCode = HttpStatus.ok;
                 request.response.headers.contentType = ContentType.json;
                 request.response.write(jsonEncode({'status': 'success'}));
@@ -152,13 +152,13 @@ class AppWebserver {
           // --- Static Files / SPA Fallback ---
           var assetPath = path == '/' || path.isEmpty ? '/index.html' : path;
           try {
-            final byteData = await rootBundle.load('web$assetPath');
+            final byteData = await rootBundle.load('assets/web$assetPath');
             final bytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
             request.response.statusCode = HttpStatus.ok;
             request.response.headers.contentType = _getContentType(assetPath);
             request.response.add(bytes);
           } catch (_) {
-            final fallbackData = await rootBundle.load('web/index.html');
+            final fallbackData = await rootBundle.load('assets/web/index.html');
             final fallbackBytes = fallbackData.buffer.asUint8List(fallbackData.offsetInBytes, fallbackData.lengthInBytes);
             request.response.statusCode = HttpStatus.ok;
             request.response.headers.contentType = ContentType.html;
