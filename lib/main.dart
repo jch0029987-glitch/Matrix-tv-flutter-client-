@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
@@ -36,7 +37,7 @@ void main() async {
   // Bind the active Matrix client to the web server singleton
   AppWebserver().setClient(client);
 
-  // 2. Auto-start web server on boot if enabled in preferences
+  // 2. Auto-start web server and foreground service on boot if enabled in preferences
   try {
     final prefs = await SharedPreferences.getInstance();
     final bool autoStartOnLogin = prefs.getBool('autostart_on_login') ?? true;
@@ -45,7 +46,7 @@ void main() async {
       final webserver = AppWebserver();
       if (!webserver.isRunning) {
         await webserver.start();
-        debugPrint('🚀 Web server successfully auto-started on app boot.');
+        debugPrint('🚀 Web server & foreground service successfully auto-started on app boot.');
       }
     }
   } catch (e) {
@@ -104,4 +105,24 @@ class _MatrixAppState extends State<MatrixApp> {
           : LoginScreen(client: widget.client),
     );
   }
+}
+
+/// Mandatory background entry point for flutter_overlay_window
+@pragma("vm:entry-point")
+void overlayMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(
+    const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Material(
+        color: Colors.transparent,
+        child: Center(
+          child: Text(
+            'Matrix Notification Overlay',
+            style: TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+      ),
+    ),
+  );
 }
