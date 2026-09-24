@@ -1,4 +1,4 @@
-name: flutter_matrix_client
+Name: flutter_matrix_client
 description: "A native Matrix client for Google TV optimized for D-pad remote navigation."
 publish_to: 'none'
 
@@ -23,7 +23,8 @@ dependencies:
   shelf: ^1.4.1
   shelf_static: ^1.1.2
   shared_preferences: ^2.3.2
-flutter_local_notifications: ^17.2.2
+  flutter_local_notifications: ^17.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
