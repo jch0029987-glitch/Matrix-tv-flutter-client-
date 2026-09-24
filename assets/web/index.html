@@ -204,6 +204,8 @@
     <div id="toolsView" class="view">
       <header><h1>TV Control Tools</h1></header>
       <div style="overflow-y: auto; flex-grow: 1;">
+        
+        <!-- Clipboard Bridge Card -->
         <div class="card">
           <h3 style="margin-top:0; color: var(--accent);">Clipboard Bridge</h3>
           <p style="font-size: 13px; color: var(--text-muted);">Push text instantly to the Android TV system clipboard.</p>
@@ -212,6 +214,15 @@
           <p id="clipStatus" style="font-size: 12px; text-align: center; margin-top: 8px;"></p>
         </div>
 
+        <!-- Notifications Card -->
+        <div class="card">
+          <h3 style="margin-top:0; color: var(--accent);">Notifications</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">Trigger a high-priority heads-up notification banner on Google TV.</p>
+          <button onclick="triggerTestNotification()">Fire Test Notification</button>
+          <p id="notifStatus" style="font-size: 12px; text-align: center; margin-top: 8px;"></p>
+        </div>
+
+        <!-- System Status Card -->
         <div class="card">
           <h3 style="margin-top:0; color: var(--accent);">System Status</h3>
           <p><strong>User ID:</strong> <span id="statUser">-</span></p>
@@ -219,6 +230,7 @@
           <p><strong>Active Rooms:</strong> <span id="statRooms">-</span></p>
           <button onclick="loadStatus()">Refresh Diagnostics</button>
         </div>
+
       </div>
     </div>
 
@@ -371,6 +383,24 @@
         } else {
           status.style.color = 'red';
           status.innerText = 'Failed to update clipboard.';
+        }
+      } catch (e) {
+        status.style.color = 'red';
+        status.innerText = 'Connection error.';
+      }
+    }
+
+    async function triggerTestNotification() {
+      const status = document.getElementById('notifStatus');
+      status.innerText = 'Firing test notification...';
+      try {
+        const res = await fetch('/api/test_notification', { method: 'POST' });
+        if (res.ok) {
+          status.style.color = '#03DAC6';
+          status.innerText = 'Test notification fired!';
+        } else {
+          status.style.color = 'red';
+          status.innerText = 'Permission denied or failed.';
         }
       } catch (e) {
         status.style.color = 'red';
