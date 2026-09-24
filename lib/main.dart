@@ -27,6 +27,9 @@ void main() async {
   // Restore previous session from local storage (if any)
   await client.init();
 
+  // 🔑 CRITICAL: Bind the client to the singleton webserver immediately after session load
+  AppWebserver().setClient(client);
+
   // Automatically start the web server on app launch if enabled in preferences
   try {
     final prefs = await SharedPreferences.getInstance();
