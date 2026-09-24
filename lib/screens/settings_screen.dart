@@ -140,6 +140,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Builder(
                 builder: (context) {
                   final hasFocus = Focus.of(context).hasFocus;
+                  
+                  // Expose startup error on TV screen if present
+                  final String subtitleText = _webserver.isRunning 
+                      ? 'Running on port ${_webserver.port} (0.0.0.0)' 
+                      : (_webserver.lastError != null 
+                          ? 'Error: ${_webserver.lastError}' 
+                          : 'Server is currently offline');
+
                   return Card(
                     color: hasFocus ? const Color(0xFF03DAC6) : const Color(0xFF2C2C2C),
                     child: SwitchListTile(
@@ -151,11 +159,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        _webserver.isRunning 
-                            ? 'Running on port ${_webserver.port} (0.0.0.0)' 
-                            : 'Server is currently offline',
+                        subtitleText,
                         style: TextStyle(
-                          color: hasFocus ? Colors.black54 : Colors.white70,
+                          color: hasFocus 
+                              ? Colors.black54 
+                              : (_webserver.lastError != null ? Colors.redAccent : Colors.white70),
                         ),
                       ),
                       secondary: _isServerToggling
