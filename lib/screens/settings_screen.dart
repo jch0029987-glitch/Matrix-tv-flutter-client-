@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/update_service.dart';
 import '../services/app_webserver.dart';
 import 'login_screen.dart';
@@ -21,11 +22,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _updateStatus = '';
   bool _isCheckingUpdate = false;
   bool _isServerToggling = false;
+  bool _autoStartOnLogin = true;
 
   @override
   void initState() {
     super.initState();
+    _loadPreferences();
     _loadAppVersion();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _autoStartOnLogin = prefs.getBool('autostart_on_login') ?? true;
+      });
+    }
   }
 
   Future<void> _loadAppVersion() async {
@@ -65,13 +77,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       if (value) {
         await _webserver.start();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Server started on port 8086!')),
+          );
+        }
       } else {
         await _webserver.stop();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Server stopped.')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to toggle web server: $e')),
+          SnackBar(
+            content: Text('Server Error: ${e.toString()}'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     } finally {
@@ -81,6 +107,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         });
       }
     }
+  }
+
+  Future<void> _toggleAutoStartOnLogin(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('autostart_on_login', value);
+    setState(() {
+      _autoStartOnLogin = value;
+    });
   }
 
   @override
@@ -93,16 +127,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 64.0, vertical: 24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: ListView(
           children: [
             const Text(
               'Application Settings',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
             ),
             const SizedBox(height: 24),
             
-            // Web Server Control Tile
+            // 1. Web Server Control Tile
             Focus(
               child: Builder(
                 builder: (context) {
@@ -146,7 +179,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Check for Updates Tile
+            // 2. Start on Login Toggle Tile
+            Focus(
+              child: Builder(
+                builder: (context) {
+                  final hasFocus = Focus.of(context).hasFocus;
+                  return Card(
+                    color: hasFocus ? const Color(0xFF03DAC6) : const Color(0xFF2C2C2C),
+                    child: SwitchListTile(
+                      title: Text(
+                        'Start Web Server on App Login',
+                        style: TextStyle(
+                          color: hasFocus ? Colors.black : Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _autoStartOnLogin 
+                            ? 'Automatically boots port 8086 upon login' 
+                            : 'Manual start only',
+                        style: TextStyle(
+                          color: hasFocus ? Colors.black54 : Colors.white70,
+                        ),
+                      ),
+                      secondary: Icon(
+                        Icons.login,
+                        color: hasFocus ? Colors.black : const Color(0xFF03DAC6),
+                      ),
+                      value: _autoStartOnLogin,
+                      onChanged: (val) => _toggleAutoStartOnLogin(val),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 3. Check for Updates Tile
             Focus(
               autofocus: true,
               child: Builder(
@@ -186,7 +255,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Logout / Sign Out Tile
+            // 4. Logout / Sign Out Tile
             Focus(
               child: Builder(
                 builder: (context) {
@@ -212,6 +281,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         color: hasFocus ? Colors.white : Colors.redAccent,
                       ),
                       onTap: () async {
+                        await _webserver.stop();
                         await widget.client.logout();
                         if (context.mounted) {
                           Navigator.pushAndRemoveUntil(
