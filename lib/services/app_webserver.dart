@@ -35,7 +35,7 @@ class AppWebserver {
 
   Future<void> showNotification(String title, String body) async {
     try {
-      // 1. Share payload with the floating overlay window isolate if active
+      // 1. Push payload directly to the active overlay window stream
       if (await FlutterOverlayWindow.isActive()) {
         await FlutterOverlayWindow.shareData({
           'title': title,
@@ -43,25 +43,17 @@ class AppWebserver {
         });
       }
 
-      // 2. Dispatch via native method channel / foreground service
+      // 2. Dispatch via native method channel / system notification
       await _nativeNotificationChannel.invokeMethod('showNotification', {
         'title': title,
         'body': body,
       });
+      
       debugPrint('✅ Native system notification & overlay dispatched successfully.');
     } catch (e, stackTrace) {
       debugPrint('❌ Failed to show notification: $e');
       debugPrint('❌ StackTrace: $stackTrace');
       rethrow;
-    }
-  }
-
-  Future<void> _startForegroundService() async {
-    try {
-      await _nativeNotificationChannel.invokeMethod('startForegroundService');
-      debugPrint('🛡️ Native foreground service successfully requested.');
-    } catch (e) {
-      debugPrint('⚠️ Failed to start native foreground service: $e');
     }
   }
 
@@ -103,9 +95,6 @@ class AppWebserver {
   Future<void> start() async {
     if (_server != null) return;
     _lastError = null;
-
-    // Promote to a foreground service so background limits don't kill us
-    await _startForegroundService();
     await initNotifications();
 
     if (_eventController.isClosed) {
@@ -319,4 +308,3 @@ class AppWebserver {
     }
   }
 }
-y
