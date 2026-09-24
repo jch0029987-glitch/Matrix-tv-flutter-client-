@@ -1,4 +1,4 @@
-Name: flutter_matrix_client
+name: flutter_matrix_client
 description: "A native Matrix client for Google TV optimized for D-pad remote navigation."
 publish_to: 'none'
 
