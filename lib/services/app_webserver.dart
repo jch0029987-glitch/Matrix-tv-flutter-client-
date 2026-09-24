@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
+import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 class AppWebserver {
   static final AppWebserver _instance = AppWebserver._internal();
@@ -18,7 +19,6 @@ class AppWebserver {
   StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   StreamSubscription? _matrixSub;
   
-  // Correct method channel matching your application ID: com.jeremy.flutter_matrix_client
   static const MethodChannel _nativeNotificationChannel = MethodChannel('com.jeremy.flutter_matrix_client/notifications');
 
   bool get isRunning => _server != null;
@@ -35,15 +35,33 @@ class AppWebserver {
 
   Future<void> showNotification(String title, String body) async {
     try {
+      // 1. Share payload with the floating overlay window isolate if active
+      if (await FlutterOverlayWindow.isActive()) {
+        await FlutterOverlayWindow.shareData({
+          'title': title,
+          'body': body,
+        });
+      }
+
+      // 2. Dispatch via native method channel / foreground service
       await _nativeNotificationChannel.invokeMethod('showNotification', {
         'title': title,
         'body': body,
       });
-      debugPrint('✅ Native system notification dispatched successfully.');
+      debugPrint('✅ Native system notification & overlay dispatched successfully.');
     } catch (e, stackTrace) {
       debugPrint('❌ Failed to show notification: $e');
       debugPrint('❌ StackTrace: $stackTrace');
       rethrow;
+    }
+  }
+
+  Future<void> _startForegroundService() async {
+    try {
+      await _nativeNotificationChannel.invokeMethod('startForegroundService');
+      debugPrint('🛡️ Native foreground service successfully requested.');
+    } catch (e) {
+      debugPrint('⚠️ Failed to start native foreground service: $e');
     }
   }
 
@@ -85,6 +103,9 @@ class AppWebserver {
   Future<void> start() async {
     if (_server != null) return;
     _lastError = null;
+
+    // Promote to a foreground service so background limits don't kill us
+    await _startForegroundService();
     await initNotifications();
 
     if (_eventController.isClosed) {
@@ -298,3 +319,4 @@ class AppWebserver {
     }
   }
 }
+y
