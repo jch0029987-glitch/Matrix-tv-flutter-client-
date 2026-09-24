@@ -26,19 +26,18 @@ class AppWebserver {
     _matrixClient = client;
     
     _matrixSub?.cancel();
-    _matrixSub = _matrixClient!.onEvent.stream.listen((update) {
+    // Use onRoomMessage stream directly to receive clean Event objects in 12.0.1
+    _matrixSub = _matrixClient!.onRoomMessage.stream.listen((event) {
       if (_matrixClient == null) return;
-      final event = update.event;
-      if (event == null) return;
       
       final room = _matrixClient!.getRoomById(event.roomId ?? '');
-      if (room != null && event.content.containsKey('body')) {
+      if (room != null) {
         _eventController.add({
           'type': 'room_event',
           'roomId': room.id,
           'roomName': room.getLocalizedDisplayname(),
-          'sender': event.senderId,
-          'body': event.content['body'] ?? '',
+          'sender': event.senderId ?? 'Unknown',
+          'body': event.body,
           'timestamp': event.originServerTs.millisecondsSinceEpoch,
         });
       }
@@ -68,7 +67,7 @@ class AppWebserver {
             request.response.write(jsonEncode({
               'userId': _matrixClient?.userID ?? 'Not Logged In',
               'homeserver': _matrixClient?.homeserver?.toString() ?? 'Unknown',
-              'isLoggedIn': _matrixClient?.isLoggedIn ?? false,
+              'isLoggedIn': _matrixClient?.userID != null,
               'roomCount': _matrixClient?.rooms.length ?? 0,
               'uptimeSeconds': DateTime.now().millisecondsSinceEpoch ~/ 1000,
             }));
@@ -127,10 +126,9 @@ class AppWebserver {
             if (roomId != null && message != null && _matrixClient != null) {
               final room = _matrixClient!.getRoomById(roomId);
               if (room != null) {
-                await room.sendEvent(EventTypes.RoomMessage, {
-                  'msgtype': 'm.text',
-                  'body': message,
-                });
+                // Clean helper method for text transmission in 12.0.1
+                await room.sendTextMessage(message);
+                
                 request.response.statusCode = HttpStatus.ok;
                 request.response.headers.contentType = ContentType.json;
                 request.response.write(jsonEncode({'status': 'success'}));
