@@ -165,8 +165,8 @@ class _OverlayControllerWidgetState extends State<OverlayControllerWidget> {
   @override
   void initState() {
     super.initState();
-    // Listen for incoming payload updates dispatched from the main isolate
-    FlutterOverlayWindow.dataStream.listen((data) {
+    // Correct listener stream for flutter_overlay_window v0.5.0
+    FlutterOverlayWindow.overlayListener.listen((data) {
       if (data is Map) {
         setState(() {
           _title = data['title']?.toString() ?? 'Matrix TV';
