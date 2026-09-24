@@ -74,7 +74,7 @@ class MatrixApp extends StatefulWidget {
 class _MatrixAppState extends State<MatrixApp> {
   @override
   void initState() {
-    super.init();
+    super.initState();
     
     // 🔑 Safely trigger the Android runtime permission dialog the moment 
     // the app's first frame renders (Activity is active & ready)
@@ -101,8 +101,8 @@ class _MatrixAppState extends State<MatrixApp> {
       ),
       // Automatically route to RoomListScreen if logged in, or LoginScreen if not
       home: widget.client.isLogged() 
-          ? RoomListScreen(client: client) 
-          : LoginScreen(client: client),
+          ? RoomListScreen(client: widget.client) 
+          : LoginScreen(client: widget.client),
     );
   }
 }
