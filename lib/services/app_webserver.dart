@@ -26,23 +26,32 @@ class AppWebserver {
     _matrixClient = client;
     
     _matrixSub?.cancel();
-    // Use client.onEvent stream in 12.0.1 to catch incoming updates globally
+    
+    // In Matrix 12.0.1, safely capture messages via client timeline/event broadcast 
+    // or fallback safely to prevent EventUpdate property errors.
     _matrixSub = _matrixClient!.onEvent.stream.listen((update) {
       if (_matrixClient == null) return;
       
-      // Check if it's a room message event type
-      if (update.type == 'm.room.message' && update.content.containsKey('body')) {
-        final room = _matrixClient!.getRoomById(update.roomId ?? '');
-        if (room != null) {
-          _eventController.add({
-            'type': 'room_event',
-            'roomId': room.id,
-            'roomName': room.getLocalizedDisplayname(),
-            'sender': update.senderId ?? 'Unknown',
-            'body': update.content['body']?.toString() ?? '',
-            'timestamp': update.originServerTs.millisecondsSinceEpoch,
-          });
+      try {
+        // Use safe map content inspection available on update
+        final content = update.content;
+        if (update.type == 'm.room.message' && content.containsKey('body')) {
+          final roomId = update.rawEvent['room_id'] as String? ?? '';
+          final room = _matrixClient!.getRoomById(roomId);
+          
+          if (room != null) {
+            _eventController.add({
+              'type': 'room_event',
+              'roomId': room.id,
+              'roomName': room.getLocalizedDisplayname(),
+              'sender': update.rawEvent['sender'] as String? ?? 'Unknown',
+              'body': content['body']?.toString() ?? '',
+              'timestamp': update.rawEvent['origin_server_ts'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+            });
+          }
         }
+      } catch (e) {
+        debugPrint('⚠️ Error parsing matrix event update: $e');
       }
     });
   }
@@ -129,8 +138,11 @@ class AppWebserver {
             if (roomId != null && message != null && _matrixClient != null) {
               final room = _matrixClient!.getRoomById(roomId);
               if (room != null) {
-                // Correct text transmission method for matrix 12.0.1
-                await room.sendTextEvent(message);
+                // Safe text event transmission for 12.0.1
+                await room.sendEvent({
+                  'msgtype': 'm.text',
+                  'body': message,
+                }, type: EventTypes.roomMessage);
                 
                 request.response.statusCode = HttpStatus.ok;
                 request.response.headers.contentType = ContentType.json;
