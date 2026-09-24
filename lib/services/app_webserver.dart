@@ -26,20 +26,23 @@ class AppWebserver {
     _matrixClient = client;
     
     _matrixSub?.cancel();
-    // Use onRoomMessage stream directly to receive clean Event objects in 12.0.1
-    _matrixSub = _matrixClient!.onRoomMessage.stream.listen((event) {
+    // Use client.onEvent stream in 12.0.1 to catch incoming updates globally
+    _matrixSub = _matrixClient!.onEvent.stream.listen((update) {
       if (_matrixClient == null) return;
       
-      final room = _matrixClient!.getRoomById(event.roomId ?? '');
-      if (room != null) {
-        _eventController.add({
-          'type': 'room_event',
-          'roomId': room.id,
-          'roomName': room.getLocalizedDisplayname(),
-          'sender': event.senderId ?? 'Unknown',
-          'body': event.body,
-          'timestamp': event.originServerTs.millisecondsSinceEpoch,
-        });
+      // Check if it's a room message event type
+      if (update.type == 'm.room.message' && update.content.containsKey('body')) {
+        final room = _matrixClient!.getRoomById(update.roomId ?? '');
+        if (room != null) {
+          _eventController.add({
+            'type': 'room_event',
+            'roomId': room.id,
+            'roomName': room.getLocalizedDisplayname(),
+            'sender': update.senderId ?? 'Unknown',
+            'body': update.content['body']?.toString() ?? '',
+            'timestamp': update.originServerTs.millisecondsSinceEpoch,
+          });
+        }
       }
     });
   }
@@ -126,8 +129,8 @@ class AppWebserver {
             if (roomId != null && message != null && _matrixClient != null) {
               final room = _matrixClient!.getRoomById(roomId);
               if (room != null) {
-                // Clean helper method for text transmission in 12.0.1
-                await room.sendTextMessage(message);
+                // Correct text transmission method for matrix 12.0.1
+                await room.sendTextEvent(message);
                 
                 request.response.statusCode = HttpStatus.ok;
                 request.response.headers.contentType = ContentType.json;
