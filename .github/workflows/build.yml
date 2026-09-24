@@ -32,19 +32,19 @@ jobs:
         run: flutter pub get
 
       # 1. Restore Keystore & Create key.properties if secrets exist
-      - name: Restore Keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      - name: Setup Android Keystore
         run: |
-          mkdir -p android/app
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
-
-      - name: Create key.properties
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        run: |
-          echo "storeFile=${{ github.workspace }}/android/app/release-key.jks" >> android/key.properties
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Keystore secret found. Configuring signing..."
+            mkdir -p android/app
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
+            echo "storeFile=${{ github.workspace }}/android/app/release-key.jks" >> android/key.properties
+            echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+            echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+            echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          else
+            echo "No keystore secret provided. Skipping signing."
+          fi
 
       # 2. Build Optimized Release APK targeting arm
       - name: Build Optimized APK Release
