@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:matrix/matrix.dart';
-import 'room_list_screen.dart';
+import '../services/app_webserver.dart';
+import 'room_list_screen.dart'; // Or your target post-login screen
 
 class LoginScreen extends StatefulWidget {
   final Client client;
@@ -37,6 +39,22 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         password: _passwordController.text,
       );
+
+      // Automatically start the web server on successful login if enabled
+      final prefs = await SharedPreferences.getInstance();
+      final bool autoStartOnLogin = prefs.getBool('autostart_on_login') ?? true;
+
+      if (autoStartOnLogin) {
+        final webserver = AppWebserver();
+        if (!webserver.isRunning) {
+          try {
+            await webserver.start();
+            debugPrint('Web server successfully auto-started on login.');
+          } catch (e) {
+            debugPrint('Failed to auto-start web server on login: $e');
+          }
+        }
+      }
 
       if (mounted) {
         Navigator.pushReplacement(
