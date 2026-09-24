@@ -48,9 +48,12 @@ void main() async {
         await webserver.start();
         debugPrint('🚀 Web server & foreground service successfully auto-started on app boot.');
       }
+      
+      // 3. Automatically show/activate the overlay window if already logged in
+      await _initializeOverlayWindow();
     }
   } catch (e) {
-    debugPrint('⚠️ Failed to auto-start web server on boot: $e');
+    debugPrint('⚠️ Failed to auto-start web server/overlay on boot: $e');
   }
 
   runApp(MatrixApp(client: client));
@@ -60,6 +63,33 @@ Future<sqflite.Database> _openDatabase() async {
   final directory = await getApplicationSupportDirectory();
   final dbPath = p.join(directory.path, 'matrix_tv_client.db');
   return sqflite.openDatabase(dbPath);
+}
+
+/// Helper to safely request permission and activate the overlay window
+Future<void> _initializeOverlayWindow() async {
+  try {
+    final isGranted = await FlutterOverlayWindow.isPermissionGranted();
+    if (!isGranted) {
+      final requested = await FlutterOverlayWindow.requestPermission();
+      if (requested != true) {
+        debugPrint('⚠️ Overlay permission denied by user.');
+        return;
+      }
+    }
+
+    if (!await FlutterOverlayWindow.isActive) {
+      await FlutterOverlayWindow.showOverlay(
+        height: 150,
+        width: 400,
+        alignment: OverlayAlignment.topCenter,
+        flag: OverlayFlag.defaultFlag,
+        enableDrag: false,
+      );
+      debugPrint('📺 Flutter overlay window successfully activated.');
+    }
+  } catch (e) {
+    debugPrint('❌ Failed to activate overlay window: $e');
+  }
 }
 
 class MatrixApp extends StatefulWidget {
@@ -75,13 +105,16 @@ class _MatrixAppState extends State<MatrixApp> {
   void initState() {
     super.initState();
     
-    // 3. Perform a background permission check once the app frame mounts if logged in
+    // Perform a background permission check once the app frame mounts if logged in
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (widget.client.isLogged()) {
         try {
           debugPrint('🔍 Verifying notification status on boot...');
           final granted = await AppWebserver().requestPermission();
           debugPrint('🔔 Startup permission check result: $granted');
+          
+          // Ensure overlay is active if logged in
+          await _initializeOverlayWindow();
         } catch (e) {
           debugPrint('❌ Failed to verify permission on boot: $e');
         }
