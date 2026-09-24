@@ -1,6 +1,5 @@
 package com.jeremy.flutter_matrix_client
 
-import android.content.Intent
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -14,14 +13,10 @@ class MainActivity: FlutterActivity() {
         
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
-                "startForegroundService" -> {
-                    MatrixForegroundService.startService(this)
-                    result.success(true)
-                }
-                "showNotification" -> {
+                "showScreenOverlay" -> {
                     val title = call.argument<String>("title") ?: "Matrix Message"
                     val body = call.argument<String>("body") ?: ""
-                    MatrixForegroundService.showMessageNotification(this, title, body)
+                    ScreenOverlayService.showOverlay(this, title, body)
                     result.success(true)
                 }
                 else -> {
