@@ -1,16 +1,17 @@
 package com.jeremy.flutter_matrix_client
 
 import android.content.Intent
+import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.jeremy.flutter_matrix_client/notifications"
 
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
+        
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startForegroundService" -> {
@@ -18,9 +19,8 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "showNotification" -> {
-                    val title = call.argument<String>("title") ?: "Matrix Notification"
+                    val title = call.argument<String>("title") ?: "Matrix Message"
                     val body = call.argument<String>("body") ?: ""
-                    
                     MatrixForegroundService.showMessageNotification(this, title, body)
                     result.success(true)
                 }
