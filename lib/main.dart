@@ -77,7 +77,8 @@ Future<void> _initializeOverlayWindow() async {
       }
     }
 
-    final active = await FlutterOverlayWindow.isActive;
+    // Properly invoke isActive() as an async method
+    final active = await FlutterOverlayWindow.isActive();
     if (!active) {
       await FlutterOverlayWindow.showOverlay(
         height: 150,
@@ -125,6 +126,7 @@ class _MatrixAppState extends State<MatrixApp> {
 
   @override
   Widget build(BuildContext context) {
+    context; // reference to prevent lints if any
     return MaterialApp(
       title: 'Matrix TV Client',
       debugShowCheckedModeBanner: false,
