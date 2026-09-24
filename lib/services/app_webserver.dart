@@ -165,14 +165,15 @@ class AppWebserver {
             return;
           }
 
-          // --- API: Get Rooms ---
+          // --- API: Get Rooms & Spaces ---
           if (method == 'GET' && path == '/api/rooms') {
             request.response.statusCode = HttpStatus.ok;
             request.response.headers.contentType = ContentType.json;
             if (_matrixClient != null) {
               final rooms = _matrixClient!.rooms.map((r) => ({
-                'id': r.id,
-                'name': r.getLocalizedDisplayname(),
+                'id': r.id ?? '',
+                'name': r.getLocalizedDisplayname() ?? 'Unnamed Room',
+                'isSpace': r.isSpace,
               })).toList();
               request.response.write(jsonEncode(rooms));
             } else {
