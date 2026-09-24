@@ -29,13 +29,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final homeserverUri = Uri.parse(_homeserverController.text.trim());
       await widget.client.checkHomeserver(homeserverUri);
       
-      // Perform password authentication using standard Matrix identifier map format
+      // Perform password authentication using explicit AuthenticationIdentifier parameters
       await widget.client.login(
         LoginType.mLoginPassword,
-        identifier: AuthenticationIdentifier.fromJson({
-          'type': 'm.id.user',
-          'user': _usernameController.text.trim(),
-        }),
+        identifier: AuthenticationIdentifier(
+          medium: IdentifierType.user,
+          user: _usernameController.text.trim(),
+        ),
         password: _passwordController.text,
       );
 
