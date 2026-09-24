@@ -1,12 +1,14 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
+import 'services/app_webserver.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +26,22 @@ void main() async {
 
   // Restore previous session from local storage (if any)
   await client.init();
+
+  // Automatically start the web server on app launch if enabled in preferences
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final bool autoStartOnLogin = prefs.getBool('autostart_on_login') ?? true;
+
+    if (autoStartOnLogin) {
+      final webserver = AppWebserver();
+      if (!webserver.isRunning) {
+        await webserver.start();
+        debugPrint('🚀 Web server successfully auto-started on app boot.');
+      }
+    }
+  } catch (e) {
+    debugPrint('⚠️ Failed to auto-start web server on boot: $e');
+  }
 
   runApp(MatrixApp(client: client));
 }
