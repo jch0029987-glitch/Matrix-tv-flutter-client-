@@ -79,6 +79,9 @@
     .room-card {
       cursor: pointer;
       transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
     .room-card:hover {
       background: var(--card-hover);
@@ -87,6 +90,28 @@
       font-weight: bold;
       font-size: 16px;
       color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-space {
+      font-size: 10px;
+      background: #233534;
+      color: var(--accent);
+      border: 1px solid rgba(3, 218, 198, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-chat {
+      font-size: 10px;
+      background: #2a2a2a;
+      color: var(--text-muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     .chat-box {
       flex-grow: 1;
@@ -152,11 +177,11 @@
 
   <div class="app-container">
     
-    <!-- VIEW 1: ROOM LIST -->
+    <!-- VIEW 1: ROOM & SPACE LIST -->
     <div id="roomView" class="view active">
-      <header><h1>Matrix TV Rooms</h1></header>
+      <header><h1>Matrix TV Chats & Spaces</h1></header>
       <div id="roomList" class="room-list">
-        <p class="status-msg">Loading active rooms from TV...</p>
+        <p class="status-msg">Loading active chats and spaces from TV...</p>
       </div>
     </div>
 
@@ -199,7 +224,7 @@
 
     <!-- BOTTOM NAVIGATION TABS -->
     <div class="nav-bar">
-      <button class="nav-tab active" id="tabRooms" onclick="switchTab('roomView', 'tabRooms')">Chats</button>
+      <button class="nav-tab active" id="tabRooms" onclick="switchTab('roomView', 'tabRooms'); loadRooms();">Chats</button>
       <button class="nav-tab" id="tabTools" onclick="switchTab('toolsView', 'tabTools'); loadStatus();">Tools & Status</button>
     </div>
 
@@ -220,14 +245,25 @@
       document.getElementById(tabId).classList.add('active');
     }
 
+    function escapeHtml(text) {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return (text || '').replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
     async function loadRooms() {
       try {
         const res = await fetch('/api/rooms');
         const rooms = await res.json();
         const listContainer = document.getElementById('roomList');
         
-        if (rooms.length === 0) {
-          listContainer.innerHTML = '<p class="status-msg">No active rooms found.</p>';
+        if (!Array.isArray(rooms) || rooms.length === 0) {
+          listContainer.innerHTML = '<p class="status-msg">No active chats or spaces found.</p>';
           return;
         }
 
@@ -235,10 +271,23 @@
         rooms.forEach(r => {
           const card = document.createElement('div');
           card.className = 'room-card';
-          card.innerHTML = `<div class="room-name">${escapeHtml(r.name)}</div>`;
+          
+          const isSpace = r.isSpace === true;
+          const badgeHtml = isSpace 
+            ? '<span class="badge-space">Space</span>' 
+            : '<span class="badge-chat">Chat</span>';
+          
+          card.innerHTML = `
+            <div class="room-name">
+              <span>${escapeHtml(r.name)}</span>
+            </div>
+            <div>${badgeHtml}</div>
+          `;
+
           card.onclick = () => {
             openChat(r.id, r.name);
           };
+          
           listContainer.appendChild(card);
         });
       } catch (e) {
