@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
@@ -10,8 +11,26 @@ import 'screens/login_screen.dart';
 import 'screens/room_list_screen.dart';
 import 'services/app_webserver.dart';
 
+// Native platform channel bridge for direct screen drawing
+const MethodChannel _nativeNotificationChannel = MethodChannel('com.jeremy.flutter_matrix_client/notifications');
+
+Future<void> showScreenOverlay(String title, String body) async {
+  try {
+    debugPrint('🎨 [FlutterBridge] Invoking showScreenOverlay channel method with title: "$title"');
+    await _nativeNotificationChannel.invokeMethod('showScreenOverlay', {
+      'title': title,
+      'body': body,
+    });
+    debugPrint('✅ [FlutterBridge] Native direct screen overlay banner dispatched successfully.');
+  } catch (e, stackTrace) {
+    debugPrint('❌ [FlutterBridge] Failed to draw overlay banner: $e');
+    debugPrint('❌ [FlutterBridge] StackTrace: $stackTrace');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('🚀 [AppBoot] Matrix TV Client initialization started...');
 
   final sqfDb = kIsWeb ? null : await _openDatabase();
 
@@ -23,20 +42,39 @@ void main() async {
     ),
   );
 
+  debugPrint('⏳ [AppBoot] Initializing Matrix client instance...');
   await client.init();
+  debugPrint('✅ [AppBoot] Matrix client initialized. Logged in: ${client.isLogged()} (User: ${client.userID})');
 
-  // 1. Initialize notification channels on boot
-  try {
-    await AppWebserver().initNotifications();
-    debugPrint('🔔 Native notifications initialized successfully.');
-  } catch (e) {
-    debugPrint('⚠️ Failed to initialize notifications on boot: $e');
-  }
+  // 1. Direct Matrix notification listener in main with verbose debugging logs
+  client.onNotification.stream.listen((event) {
+    debugPrint('🔔 [MatrixEvent] Received notification stream event. Type: ${event.type}');
+    try {
+      if (event.type == 'm.room.message' && event.content.containsKey('body')) {
+        final senderId = event.senderId ?? '';
+        final isSelf = senderId == client.userID;
+        debugPrint('💬 [MatrixEvent] Message from $senderId (IsSelf: $isSelf)');
 
-  // Bind the active Matrix client to the web server singleton
+        if (!isSelf) {
+          final roomName = event.room?.getLocalizedDisplayname() ?? 'Matrix Room';
+          final bodyText = event.body;
+          
+          debugPrint('🚀 [MatrixEvent] Triggering screen overlay for room "$roomName"');
+          showScreenOverlay(roomName, '$senderId: $bodyText');
+        } else {
+          debugPrint('⏭️ [MatrixEvent] Ignoring self-sent message.');
+        }
+      }
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [MatrixEvent] Error handling Matrix notification in main: $e');
+      debugPrint('$stackTrace');
+    }
+  });
+
+  // Bind client to web server for API endpoints (/api/rooms, /api/send_message, etc.)
   AppWebserver().setClient(client);
 
-  // 2. Auto-start web server and foreground service on boot if enabled in preferences
+  // 2. Auto-start local HTTP server on boot
   try {
     final prefs = await SharedPreferences.getInstance();
     final bool autoStartOnLogin = prefs.getBool('autostart_on_login') ?? true;
@@ -45,47 +83,27 @@ void main() async {
       final webserver = AppWebserver();
       if (!webserver.isRunning) {
         await webserver.start();
-        debugPrint('🚀 Web server & foreground service successfully auto-started on app boot.');
+        debugPrint('🚀 [Webserver] Local web server successfully auto-started on port ${webserver.port}.');
       }
     }
   } catch (e) {
-    debugPrint('⚠️ Failed to auto-start web server on boot: $e');
+    debugPrint('⚠️ [Webserver] Failed to auto-start web server on boot: $e');
   }
 
+  debugPrint('📺 [AppBoot] Running MaterialApp root...');
   runApp(MatrixApp(client: client));
 }
 
 Future<sqflite.Database> _openDatabase() async {
   final directory = await getApplicationSupportDirectory();
   final dbPath = p.join(directory.path, 'matrix_tv_client.db');
+  debugPrint('📦 [Database] Opening local SQLite database at path: $dbPath');
   return sqflite.openDatabase(dbPath);
 }
 
-class MatrixApp extends StatefulWidget {
+class MatrixApp extends StatelessWidget {
   final Client client;
   const MatrixApp({super.key, required this.client});
-
-  @override
-  State<MatrixApp> createState() => _MatrixAppState();
-}
-
-class _MatrixAppState extends State<MatrixApp> {
-  @override
-  void initState() {
-    super.initState();
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (widget.client.isLogged()) {
-        try {
-          debugPrint('🔍 Verifying notification status on boot...');
-          final granted = await AppWebserver().requestPermission();
-          debugPrint('🔔 Startup permission check result: $granted');
-        } catch (e) {
-          debugPrint('❌ Failed to verify permission on boot: $e');
-        }
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +116,9 @@ class _MatrixAppState extends State<MatrixApp> {
           brightness: Brightness.dark,
         ),
       ),
-      home: widget.client.isLogged() 
-          ? RoomListScreen(client: widget.client) 
-          : LoginScreen(client: widget.client),
+      home: client.isLogged() 
+          ? RoomListScreen(client: client) 
+          : LoginScreen(client: client),
     );
   }
 }
