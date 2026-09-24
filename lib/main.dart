@@ -27,12 +27,10 @@ void main() async {
   // Restore previous session from local storage (if any)
   await client.init();
 
-  // 🔑 Initialize Native Android TV Notifications Channel & Runtime Permissions
+  // 🔑 Initialize Native Android TV Notifications Channel on boot
   try {
-    final webserver = AppWebserver();
-    await webserver.initNotifications();
-    await webserver.requestPermission();
-    debugPrint('🔔 Native notifications initialized & permissions requested.');
+    await AppWebserver().initNotifications();
+    debugPrint('🔔 Native notifications initialized successfully.');
   } catch (e) {
     debugPrint('⚠️ Failed to initialize notifications on boot: $e');
   }
@@ -65,9 +63,30 @@ Future<sqflite.Database> _openDatabase() async {
   return sqflite.openDatabase(dbPath);
 }
 
-class MatrixApp extends StatelessWidget {
+class MatrixApp extends StatefulWidget {
   final Client client;
   const MatrixApp({super.key, required this.client});
+
+  @override
+  State<MatrixApp> createState() => _MatrixAppState();
+}
+
+class _MatrixAppState extends State<MatrixApp> {
+  @override
+  void initState() {
+    super.init();
+    
+    // 🔑 Safely trigger the Android runtime permission dialog the moment 
+    // the app's first frame renders (Activity is active & ready)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final granted = await AppWebserver().requestPermission();
+        debugPrint('🔔 Notification permission status: $granted');
+      } catch (e) {
+        debugPrint('⚠️ Failed to request permission on app load: $e');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,8 +99,8 @@ class MatrixApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      // Automatically route to RoomListScreen if a session is already active
-      home: client.isLogged() 
+      // Automatically route to RoomListScreen if logged in, or LoginScreen if not
+      home: widget.client.isLogged() 
           ? RoomListScreen(client: client) 
           : LoginScreen(client: client),
     );
