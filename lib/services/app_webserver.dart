@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
-import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 class AppWebserver {
   static final AppWebserver _instance = AppWebserver._internal();
@@ -35,21 +34,13 @@ class AppWebserver {
 
   Future<void> showNotification(String title, String body) async {
     try {
-      // 1. Push payload directly to the active overlay window stream
-      if (await FlutterOverlayWindow.isActive()) {
-        await FlutterOverlayWindow.shareData({
-          'title': title,
-          'body': body,
-        });
-      }
-
-      // 2. Dispatch via native method channel / system notification
+      // Dispatch straight to native Android TV heads-up notification channel
       await _nativeNotificationChannel.invokeMethod('showNotification', {
         'title': title,
         'body': body,
       });
       
-      debugPrint('✅ Native system notification & overlay dispatched successfully.');
+      debugPrint('✅ Native high-priority notification banner dispatched successfully.');
     } catch (e, stackTrace) {
       debugPrint('❌ Failed to show notification: $e');
       debugPrint('❌ StackTrace: $stackTrace');
