@@ -8,10 +8,11 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.TextView
 
 class ScreenOverlayService : Service() {
@@ -21,10 +22,12 @@ class ScreenOverlayService : Service() {
     private val handler = Handler(Looper.getMainLooper())
 
     companion object {
+        private const val TAG = "MatrixOverlay"
         private const val EXTRA_TITLE = "extra_title"
         private const val EXTRA_BODY = "extra_body"
 
         fun showOverlay(context: Context, title: String, body: String) {
+            Log.d(TAG, "showOverlay requested for title: '$title'")
             val intent = Intent(context, ScreenOverlayService::class.java).apply {
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_BODY, body)
@@ -41,26 +44,31 @@ class ScreenOverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "ScreenOverlayService created")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Matrix TV"
         val body = intent?.getStringExtra(EXTRA_BODY) ?: ""
+        Log.d(TAG, "onStartCommand received. Title: $title | Body: $body")
 
         showFloatingView(title, body)
         return START_NOT_STICKY
     }
 
     private fun showFloatingView(titleText: String, bodyText: String) {
-        // Remove existing view if already present to prevent stacking
         if (overlayView != null) {
-            windowManager.removeView(overlayView)
+            Log.d(TAG, "Removing existing active overlay view before adding a new one")
+            try {
+                windowManager.removeView(overlayView)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing old overlay view", e)
+            }
             overlayView = null
         }
 
-        // Layout parameters for a system overlay window that sits on top of full-screen apps
-        val LAYOUT_TYPE = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
             @Suppress("DEPRECATION")
@@ -70,28 +78,25 @@ class ScreenOverlayService : Service() {
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            LAYOUT_TYPE,
+            layoutType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or 
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP.let { Gravity.TOP or Gravity.CENTER_HORIZONTAL }
-            y = 50 // Padding from top of TV screen
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            y = 40
         }
 
-        // Programmatically create a clean TV-friendly notification banner view
         val context = this
-        val view = android.widget.LinearLayout(context).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(32, 24, 32, 24)
-            setBackgroundColor(0xEE111111.toInt()) // Dark semi-transparent background
-            
-            // Optional: add a border look via background or padding wrapper
+        val view = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 30, 40, 30)
+            setBackgroundColor(0xEE141414.toInt())
             
             addView(TextView(context).apply {
                 text = titleText
-                setTextColor(0xFF00E676.toInt()) // Teal accent
+                setTextColor(0xFF00E676.toInt())
                 textSize = 16f
                 setTypeface(null, android.graphics.Typeface.BOLD)
             })
@@ -100,20 +105,21 @@ class ScreenOverlayService : Service() {
                 text = bodyText
                 setTextColor(0xFFFFFFFF.toInt())
                 textSize = 14f
-                setPadding(0, 4, 0, 0)
+                setPadding(0, 6, 0, 0)
             })
         }
 
         overlayView = view
         try {
             windowManager.addView(view, params)
+            Log.d(TAG, "Successfully added overlay view to WindowManager")
 
-            // Auto-dismiss the overlay after 4 seconds
             handler.postDelayed({
+                Log.d(TAG, "Auto-dismiss timer triggered, removing overlay view")
                 removeOverlay()
             }, 4000)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "CRITICAL: Failed to add overlay view to WindowManager. Did you grant SYSTEM_ALERT_WINDOW?", e)
         }
     }
 
@@ -122,14 +128,16 @@ class ScreenOverlayService : Service() {
             overlayView?.let {
                 windowManager.removeView(it)
                 overlayView = null
+                Log.d(TAG, "Overlay view successfully removed")
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error during overlay removal", e)
         }
         stopSelf()
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "ScreenOverlayService destroyed")
         removeOverlay()
         super.onDestroy()
     }
