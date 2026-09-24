@@ -1,116 +1,335 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Custom Matrix Client UI</title>
-    <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background: #0f172a; 
-            color: #f8fafc; 
-            padding: 16px; 
-            margin: 0;
-            max-width: 600px; 
-            margin-left: auto; 
-            margin-right: auto; 
-        }
-        .card { 
-            background: #1e293b; 
-            padding: 16px; 
-            border-radius: 8px; 
-            margin-bottom: 12px; 
-            border: 1px solid #334155; 
-        }
-        h2, h3 { margin-top: 0; }
-        label { display: block; margin-bottom: 4px; font-size: 14px; color: #94a3b8; }
-        input, button { 
-            width: 100%; 
-            padding: 10px; 
-            margin: 6px 0 12px 0; 
-            background: #0f172a; 
-            color: #fff; 
-            border: 1px solid #475569; 
-            border-radius: 4px; 
-            box-sizing: border-box; 
-        }
-        button { 
-            background: #3b82f6; 
-            border: none; 
-            font-weight: bold; 
-            cursor: pointer; 
-        }
-        button:hover { background: #2563eb; }
-        pre { 
-            background: #0f172a; 
-            padding: 10px; 
-            border-radius: 4px; 
-            overflow-x: auto; 
-            border: 1px solid #334155; 
-            font-size: 13px;
-            margin: 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Matrix TV Remote</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#03DAC6">
+  <style>
+    :root {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --card-hover: #2c2c2c;
+      --accent: #03DAC6;
+      --text: #e0e0e0;
+      --text-muted: #888;
+    }
+    body {
+      background: var(--bg-color);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 600px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-color);
+    }
+    header {
+      background: var(--card-bg);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #333;
+    }
+    header h1 {
+      font-size: 18px;
+      color: var(--accent);
+      margin: 0;
+      flex-grow: 1;
+      text-align: center;
+    }
+    .back-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0;
+    }
+    .view {
+      display: none;
+      flex-direction: column;
+      flex-grow: 1;
+      overflow: hidden;
+      padding: 16px;
+    }
+    .view.active {
+      display: flex;
+    }
+    .room-list {
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+    .room-card, .card {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .room-card {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .room-card:hover {
+      background: var(--card-hover);
+    }
+    .room-name {
+      font-weight: bold;
+      font-size: 16px;
+      color: #fff;
+    }
+    .chat-box {
+      flex-grow: 1;
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .input-bar {
+      display: flex;
+      gap: 8px;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      background: var(--card-bg);
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 6px;
+      box-sizing: border-box;
+      resize: none;
+    }
+    button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 12px 16px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover { background: #018786; color: #fff; }
+    .nav-bar {
+      display: flex;
+      background: var(--card-bg);
+      border-top: 1px solid #333;
+    }
+    .nav-tab {
+      flex-grow: 1;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .nav-tab.active {
+      color: var(--accent);
+      font-weight: bold;
+    }
+    .status-msg {
+      text-align: center;
+      color: var(--text-muted);
+      margin-top: 20px;
+    }
+  </style>
 </head>
 <body>
-    <h2>Matrix Custom Dashboard</h2>
+
+  <div class="app-container">
     
-    <div class="card">
-        <h3>1. Homeserver Settings</h3>
-        <label for="serverUrl">Server URL (Local, Tailscale, or Tunnel):</label>
-        <input id="serverUrl" value="http://localhost:8082" />
+    <!-- VIEW 1: ROOM LIST -->
+    <div id="roomView" class="view active">
+      <header><h1>Matrix TV Rooms</h1></header>
+      <div id="roomList" class="room-list">
+        <p class="status-msg">Loading active rooms from TV...</p>
+      </div>
     </div>
 
-    <div class="card">
-        <h3>2. Authentication</h3>
-        <label for="username">Username:</label>
-        <input id="username" placeholder="e.g. jeremy" />
-        <label for="password">Password:</label>
-        <input id="password" type="password" placeholder="Password" />
-        <button onclick="login()">Log In</button>
+    <!-- VIEW 2: CHAT VIEW -->
+    <div id="chatView" class="view">
+      <header>
+        <button class="back-btn" onclick="switchView('roomView')">← Back</button>
+        <h1 id="activeRoomTitle">Chat</h1>
+      </header>
+      <div class="chat-box" id="chatHistory">
+        <p class="status-msg">Connected to room timeline.</p>
+      </div>
+      <div class="input-bar">
+        <textarea id="msgInput" rows="1" placeholder="Type a message..."></textarea>
+        <button style="width: auto;" onclick="sendMessage()">Send</button>
+      </div>
     </div>
 
-    <div class="card">
-        <h3>3. Session Output</h3>
-        <pre id="output">Not authenticated yet.</pre>
+    <!-- VIEW 3: TOOLS / DIAGNOSTICS VIEW -->
+    <div id="toolsView" class="view">
+      <header><h1>TV Control Tools</h1></header>
+      <div style="overflow-y: auto; flex-grow: 1;">
+        <div class="card">
+          <h3 style="margin-top:0; color: var(--accent);">Clipboard Bridge</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">Push text instantly to the Android TV system clipboard.</p>
+          <textarea id="clipInput" rows="2" placeholder="Paste link or text here..."></textarea>
+          <button onclick="pushClipboard()" style="margin-top: 8px;">Push to TV Clipboard</button>
+          <p id="clipStatus" style="font-size: 12px; text-align: center; margin-top: 8px;"></p>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0; color: var(--accent);">System Status</h3>
+          <p><strong>User ID:</strong> <span id="statUser">-</span></p>
+          <p><strong>Homeserver:</strong> <span id="statServer">-</span></p>
+          <p><strong>Active Rooms:</strong> <span id="statRooms">-</span></p>
+          <button onclick="loadStatus()">Refresh Diagnostics</button>
+        </div>
+      </div>
     </div>
 
-    <script>
-        async function login() {
-            const rawUrl = document.getElementById('serverUrl').value.trim();
-            const baseUrl = rawUrl.replace(/\/+$/, '');
-            const user = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value;
-            const output = document.getElementById('output');
+    <!-- BOTTOM NAVIGATION TABS -->
+    <div class="nav-bar">
+      <button class="nav-tab active" id="tabRooms" onclick="switchTab('roomView', 'tabRooms')">Chats</button>
+      <button class="nav-tab" id="tabTools" onclick="switchTab('toolsView', 'tabTools'); loadStatus();">Tools & Status</button>
+    </div>
 
-            if (!user || !pass) {
-                output.innerText = "Error: Please enter both username and password.";
-                return;
-            }
+  </div>
 
-            output.innerText = "Connecting to homeserver...";
+  <script>
+    let currentRoomId = null;
+    let currentRoomName = '';
 
-            try {
-                const res = await fetch(`${baseUrl}/_matrix/client/v3/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: "m.login.password",
-                        identifier: { type: "m.id.user", user: user },
-                        password: pass
-                    })
-                });
-                
-                const data = await res.json();
-                if (res.ok) {
-                    output.innerText = `Success!\nUser ID: ${data.user_id}\nAccess Token: ${data.access_token}`;
-                } else {
-                    output.innerText = `Matrix Error (${res.status}):\n${JSON.stringify(data, null, 2)}`;
-                }
-            } catch (e) {
-                output.innerText = `Network Exception:\n${e.message}\n\nCheck if the server URL is reachable and CORS/networking rules allow connections.`;
-            }
+    function switchView(viewId) {
+      document.querySelectorAll('.app-container > .view').forEach(v => v.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+    }
+
+    function switchTab(viewId, tabId) {
+      switchView(viewId);
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    async function loadRooms() {
+      try {
+        const res = await fetch('/api/rooms');
+        const rooms = await res.json();
+        const listContainer = document.getElementById('roomList');
+        
+        if (rooms.length === 0) {
+          listContainer.innerHTML = '<p class="status-msg">No active rooms found.</p>';
+          return;
         }
-    </script>
+
+        listContainer.innerHTML = '';
+        rooms.forEach(r => {
+          const card = document.createElement('div');
+          card.className = 'room-card';
+          card.innerHTML = `<div class="room-name">${escapeHtml(r.name)}</div>`;
+          card.onclick = () => {
+            openChat(r.id, r.name);
+          };
+          listContainer.appendChild(card);
+        });
+      } catch (e) {
+        document.getElementById('roomList').innerHTML = '<p class="status-msg" style="color:red;">Failed to connect to TV server.</p>';
+      }
+    }
+
+    function openChat(roomId, roomName) {
+      currentRoomId = roomId;
+      currentRoomName = roomName;
+      document.getElementById('activeRoomTitle').innerText = roomName;
+      document.getElementById('chatHistory').innerHTML = `<p class="status-msg">Connected to ${escapeHtml(roomName)}</p>`;
+      switchView('chatView');
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('msgInput');
+      const message = input.value.trim();
+      if (!message || !currentRoomId) return;
+
+      input.value = '';
+      appendMessageBubble('You', message, true);
+
+      try {
+        await fetch('/api/send_message', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ roomId: currentRoomId, message })
+        });
+      } catch (e) {
+        alert('Failed to transmit message to TV client.');
+      }
+    }
+
+    function appendMessageBubble(sender, text, isSelf) {
+      const history = document.getElementById('chatHistory');
+      const msgBubble = document.createElement('div');
+      msgBubble.style.margin = '8px 0';
+      msgBubble.style.textAlign = isSelf ? 'right' : 'left';
+      msgBubble.innerHTML = `<div style="font-size: 11px; color: #888; margin-bottom: 2px;">${escapeHtml(sender)}</div><span style="background: ${isSelf ? '#03DAC6' : '#2c2c2c'}; color: ${isSelf ? '#000' : '#fff'}; padding: 8px 12px; border-radius: 8px; display: inline-block; text-align: left;">${escapeHtml(text)}</span>`;
+      history.appendChild(msgBubble);
+      history.scrollTop = history.scrollHeight;
+    }
+
+    async function pushClipboard() {
+      const text = document.getElementById('clipInput').value;
+      const status = document.getElementById('clipStatus');
+      if (!text) return;
+
+      status.innerText = 'Pushing to TV...';
+      try {
+        const res = await fetch('/api/clipboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+
+        if (res.ok) {
+          status.style.color = '#03DAC6';
+          status.innerText = 'Copied to TV clipboard!';
+          document.getElementById('clipInput').value = '';
+        } else {
+          status.style.color = 'red';
+          status.innerText = 'Failed to update clipboard.';
+        }
+      } catch (e) {
+        status.style.color = 'red';
+        status.innerText = 'Connection error.';
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const info = await res.json();
+        document.getElementById('statUser').innerText = info.userId;
+        document.getElementById('statServer').innerText = info.homeserver;
+        document.getElementById('statRooms').innerText = info.roomCount;
+      } catch(e) {}
+    }
+
+    // Setup Real-Time SSE Stream for incoming live events
+    const eventSource = new EventSource('/api/events');
+    eventSource.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      if (data.type === 'room_event' && data.roomId === currentRoomId && data.sender !== '@jeremy:localhost') {
+        appendMessageBubble(data.sender, data.body, false);
+      }
+    };
+
+    loadRooms();
+  </script>
 </body>
 </html>
