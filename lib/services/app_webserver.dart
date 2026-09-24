@@ -58,9 +58,26 @@ class AppWebserver {
     }
 
     try {
-      _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
+      // Try binding to anyIPv4 first for Tailscale/LAN, fallback to loopback if restricted
+      try {
+        _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
+      } catch (bindErr) {
+        debugPrint('⚠️ Failed to bind to anyIPv4, falling back to loopback: $bindErr');
+        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, _port, shared: true);
+      }
 
       _server!.listen((HttpRequest request) async {
+        // Add CORS headers to all responses so external browsers never block them
+        request.response.headers.add('Access-Control-Allow-Origin', '*');
+        request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (request.method == 'OPTIONS') {
+          request.response.statusCode = HttpStatus.ok;
+          await request.response.close();
+          return;
+        }
+
         try {
           final path = request.uri.path;
           final method = request.method;
@@ -150,27 +167,31 @@ class AppWebserver {
 
           // --- API: Get Rooms ---
           if (method == 'GET' && path == '/api/rooms') {
+            request.response.statusCode = HttpStatus.ok;
+            request.response.headers.contentType = ContentType.json;
             if (_matrixClient != null) {
               final rooms = _matrixClient!.rooms.map((r) => ({
                 'id': r.id,
                 'name': r.getLocalizedDisplayname(),
               })).toList();
-              request.response.statusCode = HttpStatus.ok;
-              request.response.headers.contentType = ContentType.json;
               request.response.write(jsonEncode(rooms));
             } else {
-              _sendError(request, 'Client uninitialized', 500);
+              // Gracefully return empty list instead of failing with 500 when uninitialized
+              request.response.write(jsonEncode([]));
             }
             return;
           }
 
           // --- Static Files / SPA Fallback ---
-          var assetPath = path == '/' || path.isEmpty ? '/index.html' : path;
+          var cleanPath = path == '/' || path.isEmpty ? '/index.html' : path;
+          if (cleanPath.startsWith('/')) {
+            cleanPath = cleanPath.substring(1);
+          }
           try {
-            final byteData = await rootBundle.load('assets/web$assetPath');
+            final byteData = await rootBundle.load('assets/web/$cleanPath');
             final bytes = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
             request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = _getContentType(assetPath);
+            request.response.headers.contentType = _getContentType(cleanPath);
             request.response.add(bytes);
           } catch (_) {
             final fallbackData = await rootBundle.load('assets/web/index.html');
@@ -188,10 +209,10 @@ class AppWebserver {
         }
       });
 
-      debugPrint('🚀 Advanced Webserver bound to port $_port');
+      debugPrint('🚀 Advanced Webserver bound to port $_port successfully');
     } catch (e, stackTrace) {
       _lastError = e.toString();
-      debugPrint('❌ Server error: $e\n$stackTrace');
+      debugPrint('❌ Server fatal startup error: $e\n$stackTrace');
       _server = null;
       rethrow;
     }
