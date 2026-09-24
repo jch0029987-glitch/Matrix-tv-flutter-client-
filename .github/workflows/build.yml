@@ -1,9 +1,6 @@
 name: Build & Release Android APK
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -16,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -32,30 +31,40 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # 1. Restore Keystore & Create key.properties for Android APK
+      # 1. Restore Keystore & Create key.properties if secrets exist
       - name: Restore Keystore
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         run: |
           mkdir -p android/app
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
 
       - name: Create key.properties
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         run: |
           echo "storeFile=${{ github.workspace }}/android/app/release-key.jks" >> android/key.properties
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
 
-      # 2. Build Optimized Release APK targeting armv7a
+      # 2. Build Optimized Release APK targeting arm
       - name: Build Optimized APK Release
         run: flutter build apk --release --target-platform android-arm
 
-      # 3. Upload release APK to GitHub Releases
+      # 3. Generate a dynamic version tag based on date and time
+      - name: Generate Release Tag
+        id: tag
+        run: |
+          TAG="v1.0.$(date +%Y%m%d_%H%M%S)"
+          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+
+      # 4. Upload release APK to GitHub Releases
       - name: Upload Release APK to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: build/app/outputs/flutter-apk/*.apk
-          name: Release ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: Manual Release (${{ steps.tag.outputs.tag_name }})
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          body: "Manually triggered release build."
           draft: false
           prerelease: false
         env:
