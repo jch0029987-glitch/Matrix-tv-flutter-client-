@@ -86,7 +86,7 @@ class MatrixForegroundService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()
@@ -95,7 +95,7 @@ class MatrixForegroundService : Service() {
     private fun dispatchMessageNotification(title: String, body: String) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val messageNotification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_email) // Fixed resource reference
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
