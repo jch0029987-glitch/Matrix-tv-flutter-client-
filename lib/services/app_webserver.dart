@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class AppWebserver {
   static final AppWebserver _instance = AppWebserver._internal();
@@ -19,89 +18,28 @@ class AppWebserver {
   StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   StreamSubscription? _matrixSub;
   
-  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  // Correct method channel matching your application ID: com.jeremy.flutter_matrix_client
+  static const MethodChannel _nativeNotificationChannel = MethodChannel('com.jeremy.flutter_matrix_client/notifications');
 
   bool get isRunning => _server != null;
   int get port => _port;
   String? get lastError => _lastError;
 
   Future<void> initNotifications() async {
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
-
-    await _notificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (details) {
-        debugPrint('🔔 Notification tapped: ${details.payload}');
-      },
-    );
-
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'matrix_tv_channel',
-      'Matrix TV Notifications',
-      description: 'Notifications for incoming Matrix chat messages',
-      importance: Importance.max,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    final androidPlugin = _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
-    if (androidPlugin != null) {
-      await androidPlugin.createNotificationChannel(channel);
-      debugPrint('🔔 Android TV notification channel successfully created & registered.');
-    }
+    debugPrint('🔔 Native TV notification bridge ready.');
   }
 
   Future<bool> requestPermission() async {
-    try {
-      final androidPlugin = _notificationsPlugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      
-      if (androidPlugin != null) {
-        // 🔑 Fallback check: Verify if already enabled at the Android OS level
-        final bool? alreadyEnabled = await androidPlugin.areNotificationsEnabled();
-        if (alreadyEnabled == true) {
-          debugPrint('🔔 Notifications are already enabled in system settings.');
-          return true;
-        }
-
-        final granted = await androidPlugin.requestNotificationsPermission();
-        debugPrint('🔔 Notification permission dialog result: $granted');
-        return granted ?? false;
-      }
-    } catch (e) {
-      debugPrint('❌ Exception requesting notification permissions: $e');
-    }
-    return true; // Fallback to true if plugin resolution fails on TV
+    return true; 
   }
 
   Future<void> showNotification(String title, String body) async {
     try {
-      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'matrix_tv_channel',
-        'Matrix TV Notifications',
-        channelDescription: 'Incoming Matrix chat messages',
-        importance: Importance.max,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher', // 🔑 Explicit icon to prevent intent null reference exceptions on Android TV
-      );
-      const NotificationDetails details = NotificationDetails(android: androidDetails);
-
-      int notificationId = DateTime.now().millisecondsSinceEpoch & 0x7FFFFFFF;
-
-      await _notificationsPlugin.show(
-        notificationId,
-        title,
-        body,
-        details,
-      );
-      debugPrint('✅ Notification dispatched successfully.');
+      await _nativeNotificationChannel.invokeMethod('showNotification', {
+        'title': title,
+        'body': body,
+      });
+      debugPrint('✅ Native system notification dispatched successfully.');
     } catch (e, stackTrace) {
       debugPrint('❌ Failed to show notification: $e');
       debugPrint('❌ StackTrace: $stackTrace');
