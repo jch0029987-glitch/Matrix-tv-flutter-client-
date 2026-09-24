@@ -77,7 +77,8 @@ Future<void> _initializeOverlayWindow() async {
       }
     }
 
-    if (!await FlutterOverlayWindow.isActive) {
+    final active = await FlutterOverlayWindow.isActive;
+    if (!active) {
       await FlutterOverlayWindow.showOverlay(
         height: 150,
         width: 400,
