@@ -197,7 +197,10 @@ class AppWebserver {
                 final room = _matrixClient!.getRoomById(roomId);
                 if (room != null) {
                   final messages = <Map<String, dynamic>>[];
-                  for (final event in room.timelineEvents) {
+                  
+                  // Properly await the timeline future
+                  final timeline = await room.getTimeline();
+                  for (final event in timeline.events) {
                     if (event.type == 'm.room.message' && event.content.containsKey('body')) {
                       final senderId = event.senderId ?? '';
                       messages.add({
