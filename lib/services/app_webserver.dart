@@ -15,8 +15,7 @@ class AppWebserver {
   String? _lastError;
   Client? _matrixClient;
   
-  StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
-  StreamSubscription? _matrixSub;
+  final StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   
   static const MethodChannel _nativeNotificationChannel = MethodChannel('com.jeremy.flutter_matrix_client/notifications');
 
@@ -32,17 +31,17 @@ class AppWebserver {
     return true; 
   }
 
-  Future<void> showNotification(String title, String body) async {
+  Future<void> showOverlayNotification(String title, String body) async {
     try {
-      // Dispatch straight to native Android TV heads-up notification channel
-      await _nativeNotificationChannel.invokeMethod('showNotification', {
+      // Corrected to invoke 'showScreenOverlay' matching MainActivity.kt
+      await _nativeNotificationChannel.invokeMethod('showScreenOverlay', {
         'title': title,
         'body': body,
       });
       
-      debugPrint('✅ Native high-priority notification banner dispatched successfully.');
+      debugPrint('🎨 Native direct screen overlay banner dispatched successfully.');
     } catch (e, stackTrace) {
-      debugPrint('❌ Failed to show notification: $e');
+      debugPrint('❌ Failed to show overlay banner: $e');
       debugPrint('❌ StackTrace: $stackTrace');
       rethrow;
     }
@@ -50,47 +49,20 @@ class AppWebserver {
 
   void setClient(Client client) {
     _matrixClient = client;
-    _matrixSub?.cancel();
-    
-    _matrixSub = _matrixClient!.onNotification.stream.listen((event) {
-      if (_matrixClient == null) return;
-      
-      try {
-        if (event.type == 'm.room.message' && event.content.containsKey('body')) {
-          final room = event.room;
-          final senderId = event.senderId ?? '';
-          final isSelf = senderId == _matrixClient!.userID;
-          final roomName = room?.getLocalizedDisplayname() ?? 'Matrix Room';
-          final bodyText = event.body;
+    // Note: Event listening and screen overlay triggers are handled globally in main.dart
+  }
 
-          if (!isSelf) {
-            showNotification(roomName, '$senderId: $bodyText');
-          }
-          
-          _eventController.add({
-            'type': 'room_event',
-            'roomId': room?.id ?? '',
-            'roomName': roomName,
-            'sender': senderId,
-            'body': bodyText,
-            'isSelf': isSelf,
-            'timestamp': event.originServerTs.millisecondsSinceEpoch,
-          });
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error handling matrix notification event: $e');
-      }
-    });
+  // Helper for broadcasting custom events to SSE clients if needed
+  void broadcastEvent(Map<String, dynamic> eventData) {
+    if (!_eventController.isClosed) {
+      _eventController.add(eventData);
+    }
   }
 
   Future<void> start() async {
     if (_server != null) return;
     _lastError = null;
     await initNotifications();
-
-    if (_eventController.isClosed) {
-      _eventController = StreamController.broadcast();
-    }
 
     try {
       try {
@@ -137,7 +109,7 @@ class AppWebserver {
               return;
             }
 
-            await showNotification('Matrix TV Test', 'This is a test notification banner on Google TV!');
+            await showOverlayNotification('Matrix TV Test', 'This is a test screen overlay banner on Google TV!');
             request.response.statusCode = HttpStatus.ok;
             request.response.headers.contentType = ContentType.json;
             request.response.write(jsonEncode({'status': 'success'}));
@@ -290,7 +262,6 @@ class AppWebserver {
   }
 
   Future<void> stop() async {
-    _matrixSub?.cancel();
     await _eventController.close();
     if (_server != null) {
       await _server!.close(force: true);
