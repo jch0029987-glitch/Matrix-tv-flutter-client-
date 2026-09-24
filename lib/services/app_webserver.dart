@@ -15,7 +15,7 @@ class AppWebserver {
   String? _lastError;
   Client? _matrixClient;
   
-  final StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
+  StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
   StreamSubscription? _matrixSub;
 
   bool get isRunning => _server != null;
@@ -28,15 +28,18 @@ class AppWebserver {
     _matrixSub?.cancel();
     _matrixSub = _matrixClient!.onEvent.stream.listen((update) {
       if (_matrixClient == null) return;
-      final room = _matrixClient!.getRoomById(update.roomId ?? '');
-      if (room != null && update.content.containsKey('body')) {
+      final event = update.event;
+      if (event == null) return;
+      
+      final room = _matrixClient!.getRoomById(event.roomId ?? '');
+      if (room != null && event.content.containsKey('body')) {
         _eventController.add({
           'type': 'room_event',
           'roomId': room.id,
           'roomName': room.getLocalizedDisplayname(),
-          'sender': update.senderId ?? 'Unknown',
-          'body': update.content['body'] ?? '',
-          'timestamp': update.originServerTs?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch,
+          'sender': event.senderId,
+          'body': event.content['body'] ?? '',
+          'timestamp': event.originServerTs.millisecondsSinceEpoch,
         });
       }
     });
@@ -45,6 +48,10 @@ class AppWebserver {
   Future<void> start() async {
     if (_server != null) return;
     _lastError = null;
+
+    if (_eventController.isClosed) {
+      _eventController = StreamController.broadcast();
+    }
 
     try {
       _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
@@ -61,7 +68,7 @@ class AppWebserver {
             request.response.write(jsonEncode({
               'userId': _matrixClient?.userID ?? 'Not Logged In',
               'homeserver': _matrixClient?.homeserver?.toString() ?? 'Unknown',
-              'isLoggedIn': _matrixClient?.isLogged() ?? false,
+              'isLoggedIn': _matrixClient?.isLoggedIn ?? false,
               'roomCount': _matrixClient?.rooms.length ?? 0,
               'uptimeSeconds': DateTime.now().millisecondsSinceEpoch ~/ 1000,
             }));
@@ -120,8 +127,10 @@ class AppWebserver {
             if (roomId != null && message != null && _matrixClient != null) {
               final room = _matrixClient!.getRoomById(roomId);
               if (room != null) {
-                // Correct for matrix 12.0.0
-                await room.sendText(message);
+                await room.sendEvent(EventTypes.RoomMessage, {
+                  'msgtype': 'm.text',
+                  'body': message,
+                });
                 request.response.statusCode = HttpStatus.ok;
                 request.response.headers.contentType = ContentType.json;
                 request.response.write(jsonEncode({'status': 'success'}));
