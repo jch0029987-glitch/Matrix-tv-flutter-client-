@@ -15,7 +15,6 @@ void main() async {
 
   final sqfDb = kIsWeb ? null : await _openDatabase();
 
-  // Initialize the client with the required MatrixSdkDatabase instance
   final client = Client(
     'MatrixTVClient',
     database: await MatrixSdkDatabase.init(
@@ -24,10 +23,9 @@ void main() async {
     ),
   );
 
-  // Restore previous session from local storage (if any)
   await client.init();
 
-  // 🔑 Initialize Native Android TV Notifications Channel on boot
+  // 1. Initialize notification channels on boot
   try {
     await AppWebserver().initNotifications();
     debugPrint('🔔 Native notifications initialized successfully.');
@@ -35,15 +33,15 @@ void main() async {
     debugPrint('⚠️ Failed to initialize notifications on boot: $e');
   }
 
-  // 🔑 CRITICAL: Bind the client to the singleton webserver immediately after session load
+  // Bind the active Matrix client to the web server singleton
   AppWebserver().setClient(client);
 
-  // Automatically start the web server on app launch if enabled in preferences
+  // 2. Auto-start web server on boot if enabled in preferences
   try {
     final prefs = await SharedPreferences.getInstance();
     final bool autoStartOnLogin = prefs.getBool('autostart_on_login') ?? true;
 
-    if (autoStartOnLogin) {
+    if (autoStartOnLogin && client.isLogged()) {
       final webserver = AppWebserver();
       if (!webserver.isRunning) {
         await webserver.start();
@@ -76,14 +74,16 @@ class _MatrixAppState extends State<MatrixApp> {
   void initState() {
     super.initState();
     
-    // 🔑 Safely trigger the Android runtime permission dialog the moment 
-    // the app's first frame renders (Activity is active & ready)
+    // 3. Perform a background permission check once the app frame mounts if logged in
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final granted = await AppWebserver().requestPermission();
-        debugPrint('🔔 Notification permission status: $granted');
-      } catch (e) {
-        debugPrint('⚠️ Failed to request permission on app load: $e');
+      if (widget.client.isLogged()) {
+        try {
+          debugPrint('🔍 Verifying notification status on boot...');
+          final granted = await AppWebserver().requestPermission();
+          debugPrint('🔔 Startup permission check result: $granted');
+        } catch (e) {
+          debugPrint('❌ Failed to verify permission on boot: $e');
+        }
       }
     });
   }
@@ -99,7 +99,6 @@ class _MatrixAppState extends State<MatrixApp> {
           brightness: Brightness.dark,
         ),
       ),
-      // Automatically route to RoomListScreen if logged in, or LoginScreen if not
       home: widget.client.isLogged() 
           ? RoomListScreen(client: widget.client) 
           : LoginScreen(client: widget.client),
