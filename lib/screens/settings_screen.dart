@@ -30,9 +30,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _loadAppVersion() async {
     final info = await PackageInfo.fromPlatform();
-    setState(() {
-      _appVersion = '${info.version} (${info.buildNumber})';
-    });
+    if (mounted) {
+      setState(() {
+        _appVersion = '${info.version} (${info.buildNumber})';
+      });
+    }
   }
 
   Future<void> _handleCheckForUpdates() async {
@@ -74,7 +76,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isServerToggling = false);
+        setState(() {
+          _isServerToggling = false;
+        });
       }
     }
   }
@@ -132,7 +136,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               color: hasFocus ? Colors.black : const Color(0xFF03DAC6),
                             ),
                       value: _webserver.isRunning,
-                      onChanged: _isServerToggling ? null : _handleToggleServer,
+                      onChanged: _isServerToggling 
+                          ? null 
+                          : (bool value) => _handleToggleServer(value),
                     ),
                   );
                 },
