@@ -26,8 +26,7 @@ class AppWebserver {
     _matrixClient = client;
     
     _matrixSub?.cancel();
-    // Listen to client-wide incoming events instead of iterating missing timeline getters
-    _matrixSub = _matrixClient$.onEvent.stream.listen((update) {
+    _matrixSub = _matrixClient!.onEvent.stream.listen((update) {
       if (_matrixClient == null) return;
       final room = _matrixClient!.getRoomById(update.roomId ?? '');
       if (room != null && update.content.containsKey('body')) {
@@ -86,7 +85,9 @@ class AppWebserver {
               } catch (_) {}
             });
 
-            request.done.then((_) {
+            request.response.done.then((_) {
+              subscription.cancel();
+            }).catchError((_) {
               subscription.cancel();
             });
             return;
@@ -119,8 +120,8 @@ class AppWebserver {
             if (roomId != null && message != null && _matrixClient != null) {
               final room = _matrixClient!.getRoomById(roomId);
               if (room != null) {
-                // Correct method call for matrix SDK text transmission
-                await room.sendTextMessage(message);
+                // Correct for matrix 12.0.0
+                await room.sendText(message);
                 request.response.statusCode = HttpStatus.ok;
                 request.response.headers.contentType = ContentType.json;
                 request.response.write(jsonEncode({'status': 'success'}));
@@ -136,10 +137,10 @@ class AppWebserver {
           // --- API: Get Rooms ---
           if (method == 'GET' && path == '/api/rooms') {
             if (_matrixClient != null) {
-              final rooms = _matrixClient!.rooms.map((r) => {
+              final rooms = _matrixClient!.rooms.map((r) => ({
                 'id': r.id,
                 'name': r.getLocalizedDisplayname(),
-              }).toList();
+              })).toList();
               request.response.statusCode = HttpStatus.ok;
               request.response.headers.contentType = ContentType.json;
               request.response.write(jsonEncode(rooms));
