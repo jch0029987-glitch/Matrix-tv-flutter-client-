@@ -56,7 +56,6 @@ class ScreenOverlayService : Service() {
         val body = intent?.getStringExtra(EXTRA_BODY) ?: ""
         Log.d(TAG, "onStartCommand received. Title: $title | Body: $body")
 
-        // Force service into foreground state with a silent channel to bypass Android 14 restrictions
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channelId = "matrix_overlay_foreground_channel"
             val channel = NotificationChannel(
@@ -111,18 +110,18 @@ class ScreenOverlayService : Service() {
             val view = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(50, 40, 50, 40)
-                setBackgroundColor(0xEE1A1A1A.toInt()) // Solid dark theme background
+                setBackgroundColor(0xEE1A1A1A.toInt())
                 
                 addView(TextView(context).apply {
                     text = titleText
-                    setTextColor(0xFF00E676.toInt()) // Bright teal accent
+                    setTextColor(0xFF00E676.toInt())
                     textSize = 18f
                     setTypeface(null, android.graphics.Typeface.BOLD)
                 })
 
                 addView(TextView(context).apply {
                     text = bodyText
-                    setTextColor(0xFFFFFFFF.toInt()) // White body text
+                    setTextColor(0xFFFFFFFF.toInt())
                     textSize = 15f
                     setPadding(0, 8, 0, 0)
                 })
@@ -132,7 +131,6 @@ class ScreenOverlayService : Service() {
             windowManager.addView(view, params)
             Log.d(TAG, "SUCCESS: Overlay view added to WindowManager.")
 
-            // Auto-dismiss the direct screen drawing after 4 seconds
             handler.postDelayed({
                 Log.d(TAG, "Auto-dismiss timer triggered, removing overlay view")
                 removeOverlay()
@@ -147,7 +145,7 @@ class ScreenOverlayService : Service() {
             overlayView?.let {
                 windowManager.removeView(it)
                 overlayView = null
-                Log.d(TestTags.TAG, "Overlay view successfully removed")
+                Log.d(TAG, "Overlay view successfully removed")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error during overlay removal", e)
