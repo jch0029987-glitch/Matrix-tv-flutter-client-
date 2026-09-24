@@ -1,6 +1,9 @@
-name: Build & Release Android APK
+name: Auto Build & Release Android APK
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -8,13 +11,19 @@ permissions:
 
 jobs:
   build_apk:
-    name: Build & Release APK
+    name: Auto Build, Version & Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Configure Git identity to allow auto-committing the version bump back to main
+      - name: Configure Git User
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -31,7 +40,38 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # 1. Restore Keystore & Create key.properties if secrets exist
+      # 1. Auto-detect, increment, and write version number in pubspec.yaml
+      - name: Auto-Increment and Write Version
+        id: auto_version
+        run: |
+          # Read current version from pubspec.yaml (e.g., version: 1.0.0+1)
+          CURRENT_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr -d '\r')
+          echo "Current version in pubspec: $CURRENT_VERSION"
+          
+          # Separate base version (1.0.0) and build number (1)
+          BASE_VER=$(echo $CURRENT_VERSION | cut -d'+' -f1)
+          BUILD_NUM=$(echo $CURRENT_VERSION | cut -d'+' -f2)
+          if [ -z "$BUILD_NUM" ]; then BUILD_NUM=0; fi
+          
+          # Automatically increment build number by 1
+          NEW_BUILD=$((BUILD_NUM + 1))
+          NEW_VERSION="${BASE_VER}+${NEW_BUILD}"
+          
+          echo "New auto-incremented version: $NEW_VERSION"
+          
+          # Write the new version back into pubspec.yaml automatically
+          sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
+          
+          # Export for subsequent steps and tagging
+          echo "tag_name=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=$NEW_VERSION" >> $GITHUB_OUTPUT
+          
+          # Commit the updated pubspec.yaml back to main with [skip ci] to prevent loops
+          git add pubspec.yaml
+          git commit -m "chore(version): auto-bump version to $NEW_VERSION [skip ci]" || echo "No changes to commit"
+          git push || echo "Push skipped or unneeded"
+
+      # 2. Setup Android Keystore if secrets exist
       - name: Setup Android Keystore
         run: |
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
@@ -46,25 +86,18 @@ jobs:
             echo "No keystore secret provided. Skipping signing."
           fi
 
-      # 2. Build Optimized Release APK targeting arm
+      # 3. Build Optimized Release APK (will now embed the auto-incremented version)
       - name: Build Optimized APK Release
         run: flutter build apk --release --target-platform android-arm
 
-      # 3. Generate a dynamic version tag based on date and time
-      - name: Generate Release Tag
-        id: tag
-        run: |
-          TAG="v1.0.$(date +%Y%m%d_%H%M%S)"
-          echo "tag_name=$TAG" >> $GITHUB_OUTPUT
-
-      # 4. Upload release APK to GitHub Releases
+      # 4. Upload release APK to GitHub Releases using the auto-written version tag
       - name: Upload Release APK to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: build/app/outputs/flutter-apk/*.apk
-          name: Manual Release (${{ steps.tag.outputs.tag_name }})
-          tag_name: ${{ steps.tag.outputs.tag_name }}
-          body: "Manually triggered release build."
+          name: Release v${{ steps.auto_version.outputs.version_number }}
+          tag_name: ${{ steps.auto_version.outputs.tag_name }}
+          body: "Fully automated build and version bump to v${{ steps.auto_version.outputs.version_number }}."
           draft: false
           prerelease: false
         env:
