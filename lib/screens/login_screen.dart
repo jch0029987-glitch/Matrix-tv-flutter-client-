@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 import 'room_list_screen.dart';
+import '../services/app_webserver.dart';
 
 class LoginScreen extends StatefulWidget {
   final Client client;
@@ -38,8 +39,10 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
-      // Server already auto-started globally in main.dart on app boot,
-      // so we just transition straight to the room list.
+      // 🔑 CRITICAL: Push the freshly authenticated client instance to the webserver
+      AppWebserver().setClient(widget.client);
+
+      // Transition straight to the room list.
       if (mounted) {
         Navigator.pushReplacement(
           context,
