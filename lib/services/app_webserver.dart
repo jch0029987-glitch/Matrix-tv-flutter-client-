@@ -27,33 +27,24 @@ class AppWebserver {
     
     _matrixSub?.cancel();
     
-    // Safely listen to event updates using 12.0.1 compatible getters (content, type, eventId)
-    _matrixSub = _matrixClient!.onEvent.stream.listen((update) {
+    // Listen directly to standard notification/timeline events using Matrix 12.0.1 client streams
+    _matrixSub = _matrixClient!.onNotification.stream.listen((event) {
       if (_matrixClient == null) return;
       
       try {
-        final content = update.content;
-        if (update.type == 'm.room.message' && content.containsKey('body')) {
-          final eventId = update.eventId;
-          if (eventId == null) return;
-
-          for (var room in _matrixClient!.rooms) {
-            final event = room.getEvent(eventId);
-            if (event != null) {
-              _eventController.add({
-                'type': 'room_event',
-                'roomId': room.id,
-                'roomName': room.getLocalizedDisplayname(),
-                'sender': event.senderId,
-                'body': event.body,
-                'timestamp': event.originServerTs.millisecondsSinceEpoch,
-              });
-              break;
-            }
-          }
+        if (event.type == 'm.room.message' && event.content.containsKey('body')) {
+          final room = event.room;
+          _eventController.add({
+            'type': 'room_event',
+            'roomId': room?.id ?? '',
+            'roomName': room?.getLocalizedDisplayname() ?? 'Unknown Room',
+            'sender': event.senderId,
+            'body': event.body,
+            'timestamp': event.originServerTs.millisecondsSinceEpoch,
+          });
         }
       } catch (e) {
-        debugPrint('⚠️ Error handling matrix event update: $e');
+        debugPrint('⚠️ Error handling matrix notification event: $e');
       }
     });
   }
@@ -140,7 +131,6 @@ class AppWebserver {
             if (roomId != null && message != null && _matrixClient != null) {
               final room = _matrixClient!.getRoomById(roomId);
               if (room != null) {
-                // Use explicit string literal type to avoid version-mismatched EventTypes constants
                 await room.sendEvent({
                   'msgtype': 'm.text',
                   'body': message,
