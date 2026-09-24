@@ -27,6 +27,16 @@ void main() async {
   // Restore previous session from local storage (if any)
   await client.init();
 
+  // 🔑 Initialize Native Android TV Notifications Channel & Runtime Permissions
+  try {
+    final webserver = AppWebserver();
+    await webserver.initNotifications();
+    await webserver.requestPermission();
+    debugPrint('🔔 Native notifications initialized & permissions requested.');
+  } catch (e) {
+    debugPrint('⚠️ Failed to initialize notifications on boot: $e');
+  }
+
   // 🔑 CRITICAL: Bind the client to the singleton webserver immediately after session load
   AppWebserver().setClient(client);
 
