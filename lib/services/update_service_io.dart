@@ -8,7 +8,7 @@ import 'package:open_filex/open_filex.dart';
 
 class UpdateService {
   static const String owner = 'jch0029987-glitch';
-  static const String repo = 'Matrix-tv-futter-client-';
+  static const String repo = 'Matrix-tv-flutter-client-';
 
   static Future<void> checkForUpdates({
     required Function(String) onStatusUpdate,
