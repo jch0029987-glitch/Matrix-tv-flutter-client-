@@ -95,7 +95,7 @@ class MatrixForegroundService : Service() {
     private fun dispatchMessageNotification(title: String, body: String) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val messageNotification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.stat_notify_chat)
+            .setSmallIcon(android.R.drawable.ic_dialog_email) // Fixed resource reference
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
