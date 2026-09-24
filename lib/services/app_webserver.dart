@@ -82,22 +82,31 @@ class AppWebserver {
   }
 
   Future<void> showNotification(String title, String body) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'matrix_tv_channel',
-      'Matrix TV Notifications',
-      channelDescription: 'Incoming Matrix chat messages',
-      importance: Importance.max,
-      priority: Priority.high,
-      ticker: 'New message',
-    );
-    const NotificationDetails details = NotificationDetails(android: androidDetails);
+    try {
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'matrix_tv_channel',
+        'Matrix TV Notifications',
+        channelDescription: 'Incoming Matrix chat messages',
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher', // 🔑 Explicit icon to prevent intent null reference exceptions on Android TV
+      );
+      const NotificationDetails details = NotificationDetails(android: androidDetails);
 
-    await _notificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
-      details,
-    );
+      int notificationId = DateTime.now().millisecondsSinceEpoch & 0x7FFFFFFF;
+
+      await _notificationsPlugin.show(
+        notificationId,
+        title,
+        body,
+        details,
+      );
+      debugPrint('✅ Notification dispatched successfully.');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Failed to show notification: $e');
+      debugPrint('❌ StackTrace: $stackTrace');
+      rethrow;
+    }
   }
 
   void setClient(Client client) {
