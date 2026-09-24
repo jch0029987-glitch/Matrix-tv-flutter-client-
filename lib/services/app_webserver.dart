@@ -13,34 +13,32 @@ class AppWebserver {
 
   HttpServer? _server;
   final int _port = 8086;
+  String? _lastError;
 
   bool get isRunning => _server != null;
   int get port => _port;
+  String? get lastError => _lastError;
 
   Future<void> start() async {
-    if (_server != null) {
-      debugPrint('AppWebserver is already running on port $_port');
-      return;
-    }
+    if (_server != null) return;
+    _lastError = null;
 
     try {
-      // 1. Prepare local directory for static web files
+      // 1. Prepare local directory
       final appDocDir = await getApplicationDocumentsDirectory();
       final webDir = Directory('${appDocDir.path}/web_assets');
       if (!await webDir.exists()) {
         await webDir.create(recursive: true);
       }
 
-      // 2. Extract index.html from assets with fallback protection
+      // 2. Extract index.html with fallback protection
       try {
         final byteData = await rootBundle.load('assets/web/index.html');
         final file = File('${webDir.path}/index.html');
         await file.writeAsBytes(
           byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes),
         );
-        debugPrint('Successfully extracted index.html to ${file.path}');
       } catch (e) {
-        debugPrint('Warning: Asset index.html failed to load ($e). Writing fallback HTML.');
         final fallbackFile = File('${webDir.path}/index.html');
         await fallbackFile.writeAsString('''
           <!DOCTYPE html>
@@ -48,13 +46,12 @@ class AppWebserver {
             <head><title>Matrix TV Control Panel</title></head>
             <body style="background: #111; color: #fff; font-family: sans-serif; text-align: center; padding-top: 50px;">
               <h1>Matrix TV Control Panel (Fallback)</h1>
-              <p>Assets missing from bundle, but server is online on port 8086!</p>
+              <p>Server is online!</p>
             </body>
           </html>
         ''');
       }
 
-      // 3. Setup static file server handler
       final staticHandler = createStaticHandler(
         webDir.path,
         defaultDocument: 'index.html',
@@ -64,7 +61,7 @@ class AppWebserver {
           .addMiddleware(logRequests())
           .addHandler(staticHandler);
 
-      // 4. Bind explicitly to any IPv4 address (0.0.0.0) on port 8086
+      // 3. Bind to socket
       _server = await io.serve(
         handler,
         InternetAddress.anyIPv4,
@@ -72,9 +69,10 @@ class AppWebserver {
         shared: true,
       );
 
-      debugPrint('🚀 AppWebserver successfully bound to http://0.0.0.0:$_port');
+      debugPrint('🚀 AppWebserver successfully bound to port $_port');
     } catch (e, stackTrace) {
-      debugPrint('❌ CRITICAL AppWebserver startup error: $e\n$stackTrace');
+      _lastError = e.toString();
+      debugPrint('❌ AppWebserver startup error: $e\n$stackTrace');
       _server = null;
       rethrow;
     }
@@ -84,7 +82,6 @@ class AppWebserver {
     if (_server != null) {
       await _server!.close(force: true);
       _server = null;
-      debugPrint('🛑 AppWebserver stopped.');
     }
   }
 }
