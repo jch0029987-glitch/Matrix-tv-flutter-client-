@@ -34,12 +34,16 @@ class AppWebserver {
       try {
         if (event.type == 'm.room.message' && event.content.containsKey('body')) {
           final room = event.room;
+          final senderId = event.senderId ?? '';
+          final isSelf = senderId == _matrixClient!.userID;
+          
           _eventController.add({
             'type': 'room_event',
             'roomId': room?.id ?? '',
             'roomName': room?.getLocalizedDisplayname() ?? 'Unknown Room',
-            'sender': event.senderId,
+            'sender': senderId,
             'body': event.body,
+            'isSelf': isSelf,
             'timestamp': event.originServerTs.millisecondsSinceEpoch,
           });
         }
@@ -177,7 +181,42 @@ class AppWebserver {
               })).toList();
               request.response.write(jsonEncode(rooms));
             } else {
-              // Gracefully return empty list instead of failing with 500 when uninitialized
+              request.response.write(jsonEncode([]));
+            }
+            return;
+          }
+
+          // --- API: Get Room Message History ---
+          if (method == 'GET' && path == '/api/messages') {
+            request.response.statusCode = HttpStatus.ok;
+            request.response.headers.contentType = ContentType.json;
+            final roomId = request.uri.queryParameters['roomId'];
+            
+            if (_matrixClient != null && roomId != null) {
+              try {
+                final room = _matrixClient!.getRoomById(roomId);
+                if (room != null) {
+                  final messages = <Map<String, dynamic>>[];
+                  for (final event in room.timelineEvents) {
+                    if (event.type == 'm.room.message' && event.content.containsKey('body')) {
+                      final senderId = event.senderId ?? '';
+                      messages.add({
+                        'sender': senderId,
+                        'body': event.body,
+                        'isSelf': senderId == _matrixClient!.userID,
+                        'timestamp': event.originServerTs.millisecondsSinceEpoch,
+                      });
+                    }
+                  }
+                  request.response.write(jsonEncode(messages));
+                } else {
+                  request.response.write(jsonEncode([]));
+                }
+              } catch (e) {
+                debugPrint('⚠️ Error fetching room history: $e');
+                request.response.write(jsonEncode([]));
+              }
+            } else {
               request.response.write(jsonEncode([]));
             }
             return;
