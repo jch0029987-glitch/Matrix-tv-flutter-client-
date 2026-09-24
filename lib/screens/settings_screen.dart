@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -23,6 +24,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _isCheckingUpdate = false;
   bool _isServerToggling = false;
   bool _autoStartOnLogin = true;
+  static const MethodChannel _nativeNotificationChannel = MethodChannel('com.example.tv/notifications');
 
   @override
   void initState() {
@@ -117,6 +119,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  Future<void> _requestOverlayPermission() async {
+    try {
+      await _nativeNotificationChannel.invokeMethod('openOverlaySettings');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Opening overlay permissions settings...')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open settings: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -141,7 +163,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 builder: (context) {
                   final hasFocus = Focus.of(context).hasFocus;
                   
-                  // Expose startup error on TV screen if present
                   final String subtitleText = _webserver.isRunning 
                       ? 'Running on port ${_webserver.port} (0.0.0.0)' 
                       : (_webserver.lastError != null 
@@ -223,9 +244,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 3. Check for Updates Tile
+            // 3. Display Over Other Apps Permission Tile (Overlay Fallback)
             Focus(
-              autofocus: true,
+              child: Builder(
+                builder: (context) {
+                  final hasFocus = Focus.of(context).hasFocus;
+                  return Card(
+                    color: hasFocus ? const Color(0xFF03DAC6) : const Color(0xFF2C2C2C),
+                    child: ListTile(
+                      title: Text(
+                        'Display Over Other Apps Permission',
+                        style: TextStyle(
+                          color: hasFocus ? Colors.black : Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Grant system overlay permission for fallback popups',
+                        style: TextStyle(
+                          color: hasFocus ? Colors.black54 : Colors.white70,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.layers,
+                        color: hasFocus ? Colors.black : const Color(0xFF03DAC6),
+                      ),
+                      onTap: _requestOverlayPermission,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 4. Check for Updates Tile
+            Focus(
               child: Builder(
                 builder: (context) {
                   final hasFocus = Focus.of(context).hasFocus;
@@ -263,7 +316,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 4. Logout / Sign Out Tile
+            // 5. Logout / Sign Out Tile
             Focus(
               child: Builder(
                 builder: (context) {
