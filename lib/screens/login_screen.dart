@@ -29,11 +29,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final homeserverUri = Uri.parse(_homeserverController.text.trim());
       await widget.client.checkHomeserver(homeserverUri);
       
-      // Perform password authentication using explicit AuthenticationIdentifier parameters
+      // Perform password authentication using AuthenticationUserIdentifier
       await widget.client.login(
         LoginType.mLoginPassword,
-        identifier: AuthenticationIdentifier(
-          medium: IdentifierType.user,
+        identifier: AuthenticationUserIdentifier(
           user: _usernameController.text.trim(),
         ),
         password: _passwordController.text,
