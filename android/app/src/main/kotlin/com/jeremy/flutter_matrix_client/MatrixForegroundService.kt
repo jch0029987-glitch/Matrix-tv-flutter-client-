@@ -14,6 +14,7 @@ class MatrixForegroundService : Service() {
 
     companion object {
         const val CHANNEL_ID = "matrix_foreground_channel"
+        const val MESSAGE_CHANNEL_ID = "matrix_message_popup_channel" // High priority channel for popups
         const val NOTIFICATION_ID = 1337
         const val ACTION_START = "START_FOREGROUND"
         const val ACTION_STOP = "STOP_FOREGROUND"
@@ -46,7 +47,7 @@ class MatrixForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        createNotificationChannels()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -68,17 +69,30 @@ class MatrixForegroundService : Service() {
         return START_STICKY
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // 1. Low priority persistent channel for the foreground service icon
+            val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
                 "Matrix Background Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Keeps the Matrix TV server active in the background"
             }
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            manager.createNotificationChannel(serviceChannel)
+
+            // 2. High priority channel for incoming message popups (Heads-Up banner on Android 14 TV)
+            val messageChannel = NotificationChannel(
+                MESSAGE_CHANNEL_ID,
+                "Matrix Message Popups",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Shows floating heads-up notification banners for incoming Matrix messages"
+                enableVibration(true)
+            }
+            manager.createNotificationChannel(messageChannel)
         }
     }
 
@@ -94,11 +108,14 @@ class MatrixForegroundService : Service() {
 
     private fun dispatchMessageNotification(title: String, body: String) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val messageNotification = NotificationCompat.Builder(this, CHANNEL_ID)
+        
+        // Use MESSAGE_CHANNEL_ID with IMPORTANCE_HIGH to force a native popup banner on Android 14 TV
+        val messageNotification = NotificationCompat.Builder(this, MESSAGE_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
             .build()
 
