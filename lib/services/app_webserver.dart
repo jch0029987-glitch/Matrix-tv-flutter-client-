@@ -1,10 +1,12 @@
-import 'dart:io';
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:shelf/shelf.dart';
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_static/shelf_static.dart';
 import 'package:matrix/matrix.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 
 class AppWebserver {
   static final AppWebserver _instance = AppWebserver._internal();
@@ -12,315 +14,191 @@ class AppWebserver {
   AppWebserver._internal();
 
   HttpServer? _server;
-  final int _port = 8086;
+  Client? _client;
+  bool _isRunning = false;
   String? _lastError;
-  Client? _matrixClient;
-  
-  StreamController<Map<String, dynamic>> _eventController = StreamController.broadcast();
-  StreamSubscription? _matrixSub;
-  
-  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  final int _port = 8086;
 
-  bool get isRunning => _server != null;
+  final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  bool get isRunning => _isRunning;
   int get port => _port;
   String? get lastError => _lastError;
 
+  void setClient(Client client) {
+    _client = client;
+  }
+
+  /// Initialize notification channels and settings safely for Android TV banners
   Future<void> initNotifications() async {
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+    try {
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    await _notificationsPlugin.initialize(initializationSettings);
+      const InitializationSettings initializationSettings =
+          InitializationSettings(android: initializationSettingsAndroid);
 
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'matrix_tv_channel',
-      'Matrix TV Notifications',
-      description: 'Notifications for incoming Matrix chat messages',
-      importance: Importance.max,
-    );
+      await _notificationsPlugin.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: (details) {
+          debugPrint('🔔 Notification tapped: ${details.payload}');
+        },
+      );
 
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
-  }
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'matrix_tv_channel',
+        'Matrix TV Notifications',
+        description: 'High-priority heads-up alerts for incoming Matrix messages',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
 
-  Future<bool> requestPermission() async {
-    final androidPlugin = _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    
-    if (androidPlugin != null) {
-      final granted = await androidPlugin.requestNotificationsPermission();
-      return granted ?? false;
+      final AndroidFlutterLocalNotificationsPlugin? androidPlugin =
+          _notificationsPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidPlugin != null) {
+        await androidPlugin.createNotificationChannel(channel);
+        debugPrint('🔔 Android TV notification channel successfully created & registered.');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error initializing notifications: $e');
+      debugPrint('❌ StackTrace: $stackTrace');
     }
-    return true;
   }
 
-  Future<void> showNotification(String title, String body) async {
+  /// Checks runtime permissions with an OS-level settings fallback for Android TV
+  Future<bool> requestPermission() async {
+    try {
+      final AndroidFlutterLocalNotificationsPlugin? androidPlugin =
+          _notificationsPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidPlugin != null) {
+        // 🔑 Fallback check: Verify if already enabled at the Android OS level
+        final bool? alreadyEnabled = await androidPlugin.areNotificationsEnabled();
+        if (alreadyEnabled == true) {
+          debugPrint('🔔 Notifications are already enabled in system settings.');
+          return true;
+        }
+
+        // Otherwise, request the permission explicitly
+        final granted = await androidPlugin.requestNotificationsPermission();
+        debugPrint('🔔 Notification permission dialog result: $granted');
+        return granted ?? false;
+      }
+    } catch (e) {
+      debugPrint('❌ Exception requesting notification permissions: $e');
+    }
+    return false;
+  }
+
+  /// Fire a test notification banner via the server backend
+  Future<void> showTestNotification() async {
+    final bool hasPermission = await requestPermission();
+    if (!hasPermission) {
+      throw Exception('Permission denied or failed.');
+    }
+
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'matrix_tv_channel',
       'Matrix TV Notifications',
-      channelDescription: 'Incoming Matrix chat messages',
+      channelDescription: 'High-priority heads-up alerts for incoming Matrix messages',
       importance: Importance.max,
       priority: Priority.high,
-      ticker: 'New message',
+      ticker: 'New Matrix Message',
     );
-    const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+    const NotificationDetails details =
+        NotificationDetails(android: androidDetails);
 
     await _notificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
+      DateTime.now().millisecond,
+      'Matrix TV Remote',
+      'Test notification from local web server!',
       details,
     );
-  }
-
-  void setClient(Client client) {
-    _matrixClient = client;
-    _matrixSub?.cancel();
-    
-    _matrixSub = _matrixClient!.onNotification.stream.listen((event) {
-      if (_matrixClient == null) return;
-      
-      try {
-        if (event.type == 'm.room.message' && event.content.containsKey('body')) {
-          final room = event.room;
-          final senderId = event.senderId ?? '';
-          final isSelf = senderId == _matrixClient!.userID;
-          final roomName = room?.getLocalizedDisplayname() ?? 'Matrix Room';
-          final bodyText = event.body;
-
-          if (!isSelf) {
-            showNotification(roomName, '$senderId: $bodyText');
-          }
-          
-          _eventController.add({
-            'type': 'room_event',
-            'roomId': room?.id ?? '',
-            'roomName': roomName,
-            'sender': senderId,
-            'body': bodyText,
-            'isSelf': isSelf,
-            'timestamp': event.originServerTs.millisecondsSinceEpoch,
-          });
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error handling matrix notification event: $e');
-      }
-    });
+    debugPrint('✅ Test notification successfully dispatched via web handler.');
   }
 
   Future<void> start() async {
-    if (_server != null) return;
-    _lastError = null;
-    await initNotifications();
-
-    if (_eventController.isClosed) {
-      _eventController = StreamController.broadcast();
-    }
+    if (_isRunning) return;
 
     try {
-      try {
-        _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
-      } catch (bindErr) {
-        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, _port, shared: true);
-      }
+      var cascade = Cascade()
+          .add(_apiHandler())
+          .add(createStaticHandler('assets/web', defaultDocument: 'index.html'));
 
-      _server!.listen((HttpRequest request) async {
-        request.response.headers.add('Access-Control-Allow-Origin', '*');
-        request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
-
-        if (request.method == 'OPTIONS') {
-          request.response.statusCode = HttpStatus.ok;
-          await request.response.close();
-          return;
-        }
-
-        try {
-          final path = request.uri.path;
-          final method = request.method;
-
-          // --- API: Status ---
-          if (method == 'GET' && path == '/api/status') {
-            request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = ContentType.json;
-            request.response.write(jsonEncode({
-              'userId': _matrixClient?.userID ?? 'Not Logged In',
-              'homeserver': _matrixClient?.homeserver?.toString() ?? 'Unknown',
-              'isLoggedIn': _matrixClient?.userID != null,
-              'roomCount': _matrixClient?.rooms.length ?? 0,
-            }));
-            return;
-          }
-
-          // --- API: Test Notification ---
-          if (method == 'POST' && path == '/api/test_notification') {
-            final hasPermission = await requestPermission();
-            if (!hasPermission) {
-              request.response.statusCode = HttpStatus.forbidden;
-              request.response.headers.contentType = ContentType.json;
-              request.response.write(jsonEncode({'error': 'Notification permission denied'}));
-              return;
-            }
-
-            await showNotification('Matrix TV Test', 'This is a test notification banner on Google TV!');
-            request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = ContentType.json;
-            request.response.write(jsonEncode({'status': 'success'}));
-            return;
-          }
-
-          // --- API: Real-Time SSE Stream ---
-          if (method == 'GET' && path == '/api/events') {
-            request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = ContentType.parse('text/event-stream');
-            request.response.headers.add('Cache-Control', 'no-cache');
-            request.response.headers.add('Connection', 'keep-alive');
-
-            request.response.write('data: ${jsonEncode({'type': 'connected'})}\n\n');
-            await request.response.flush();
-
-            final subscription = _eventController.stream.listen((data) {
-              try {
-                request.response.write('data: ${jsonEncode(data)}\n\n');
-                request.response.flush();
-              } catch (_) {}
-            });
-
-            request.response.done.then((_) => subscription.cancel());
-            return;
-          }
-
-          // --- API: Send Message ---
-          if (method == 'POST' && path == '/api/send_message') {
-            final content = await utf8.decoder.bind(request).join();
-            final data = jsonDecode(content);
-            final String? roomId = data['roomId'];
-            final String? message = data['message'];
-
-            if (roomId != null && message != null && _matrixClient != null) {
-              final room = _matrixClient!.getRoomById(roomId);
-              if (room != null) {
-                await room.sendEvent({
-                  'msgtype': 'm.text',
-                  'body': message,
-                }, type: 'm.room.message');
-                request.response.statusCode = HttpStatus.ok;
-                request.response.headers.contentType = ContentType.json;
-                request.response.write(jsonEncode({'status': 'success'}));
-              } else {
-                _sendError(request, 'Room not found', 404);
-              }
-            } else {
-              _sendError(request, 'Invalid payload', 400);
-            }
-            return;
-          }
-
-          // --- API: Rooms ---
-          if (method == 'GET' && path == '/api/rooms') {
-            request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = ContentType.json;
-            if (_matrixClient != null) {
-              final rooms = _matrixClient!.rooms.map((r) => ({
-                'id': r.id ?? '',
-                'name': r.getLocalizedDisplayname() ?? 'Unnamed Room',
-                'isSpace': r.isSpace,
-              })).toList();
-              request.response.write(jsonEncode(rooms));
-            } else {
-              request.response.write(jsonEncode([]));
-            }
-            return;
-          }
-
-          // --- API: Messages History ---
-          if (method == 'GET' && path == '/api/messages') {
-            request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = ContentType.json;
-            final roomId = request.uri.queryParameters['roomId'];
-            
-            if (_matrixClient != null && roomId != null) {
-              try {
-                final room = _matrixClient!.getRoomById(roomId);
-                if (room != null) {
-                  final messages = <Map<String, dynamic>>[];
-                  final timeline = await room.getTimeline();
-                  for (final event in timeline.events) {
-                    if (event.type == 'm.room.message' && event.content.containsKey('body')) {
-                      final senderId = event.senderId ?? '';
-                      messages.add({
-                        'sender': senderId,
-                        'body': event.body,
-                        'isSelf': senderId == _matrixClient!.userID,
-                        'timestamp': event.originServerTs.millisecondsSinceEpoch,
-                      });
-                    }
-                  }
-                  request.response.write(jsonEncode(messages));
-                } else {
-                  request.response.write(jsonEncode([]));
-                }
-              } catch (e) {
-                request.response.write(jsonEncode([]));
-              }
-            } else {
-              request.response.write(jsonEncode([]));
-            }
-            return;
-          }
-
-          // --- Static Files / SPA Fallback ---
-          var cleanPath = path == '/' || path.isEmpty ? '/index.html' : path;
-          if (cleanPath.startsWith('/')) cleanPath = cleanPath.substring(1);
-          try {
-            final byteData = await rootBundle.load('assets/web/$cleanPath');
-            request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = _getContentType(cleanPath);
-            request.response.add(byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
-          } catch (_) {
-            final fallbackData = await rootBundle.load('assets/web/index.html');
-            request.response.statusCode = HttpStatus.ok;
-            request.response.headers.contentType = ContentType.html;
-            request.response.add(fallbackData.buffer.asUint8List(fallbackData.offsetInBytes, fallbackData.lengthInBytes));
-          }
-        } catch (e) {
-          _sendError(request, 'Server Error: $e', 500);
-        } finally {
-          if (request.uri.path != '/api/events') {
-            await request.response.close();
-          }
-        }
-      });
+      _server = await shelf_io.serve(cascade.handler, '0.0.0.0', _port);
+      _isRunning = true;
+      _lastError = null;
+      debugPrint('🚀 Web server running on port $_port');
     } catch (e) {
-      _server = null;
+      _isRunning = false;
+      _lastError = e.toString();
+      debugPrint('❌ Web server start error: $_lastError');
       rethrow;
     }
   }
 
-  void _sendError(HttpRequest request, String message, int code) {
-    request.response.statusCode = code;
-    request.response.headers.contentType = ContentType.json;
-    request.response.write(jsonEncode({'error': message}));
-  }
-
-  ContentType _getContentType(String path) {
-    if (path.endsWith('.html')) return ContentType.html;
-    if (path.endsWith('.css')) return ContentType.text;
-    if (path.endsWith('.js')) return ContentType.parse('application/javascript');
-    if (path.endsWith('.json')) return ContentType.json;
-    return ContentType.binary;
-  }
-
   Future<void> stop() async {
-    _matrixSub?.cancel();
-    await _eventController.close();
-    if (_server != null) {
-      await _server!.close(force: true);
-      _server = null;
-    }
+    if (!_isRunning) return;
+    await _server?.close(force: true);
+    _server = null;
+    _isRunning = false;
+    debugPrint('🛑 Web server stopped.');
+  }
+
+  Handler _apiHandler() {
+    return (Request request) async {
+      final path = request.url.path;
+
+      if (path == 'api/status') {
+        return Response.ok(
+          jsonEncode({
+            'userId': _client?.userID ?? 'Not Logged In',
+            'homeserver': _client?.homeserver.toString() ?? '-',
+            'roomCount': _client?.rooms.length ?? 0,
+          }),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      if (path == 'api/test_notification' && request.method == 'POST') {
+        try {
+          await showTestNotification();
+          return Response.ok(jsonEncode({'success': true}),
+              headers: {'Content-Type': 'application/json'});
+        } catch (e) {
+          return Response.internalServerError(
+              body: jsonEncode({
+                'success': false,
+                'error': e.toString().replaceAll('Exception: ', '')
+              }),
+              headers: {'Content-Type': 'application/json'});
+        }
+      }
+
+      if (path == 'api/clipboard' && request.method == 'POST') {
+        try {
+          final body = await request.readAsString();
+          final data = jsonDecode(body);
+          final text = data['text'] as String?;
+          if (text != null) {
+            await Clipboard.setData(ClipboardData(text: text));
+            return Response.ok(jsonEncode({'success': true}),
+                headers: {'Content-Type': 'application/json'});
+          }
+        } catch (e) {
+          return Response.internalServerError(
+              body: jsonEncode({'success': false, 'error': e.toString()}),
+              headers: {'Content-Type': 'application/json'});
+        }
+      }
+
+      return Response.notFound('API endpoint not found');
+    };
   }
 }
