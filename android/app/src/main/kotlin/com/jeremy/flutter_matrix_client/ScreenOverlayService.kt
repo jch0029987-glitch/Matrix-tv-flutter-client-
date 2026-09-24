@@ -1,5 +1,7 @@
 package com.jeremy.flutter_matrix_client
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -14,6 +16,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.app.NotificationCompat
 
 class ScreenOverlayService : Service() {
 
@@ -53,6 +56,26 @@ class ScreenOverlayService : Service() {
         val body = intent?.getStringExtra(EXTRA_BODY) ?: ""
         Log.d(TAG, "onStartCommand received. Title: $title | Body: $body")
 
+        // Force service into foreground state with a silent channel to bypass Android 14 restrictions
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channelId = "matrix_overlay_foreground_channel"
+            val channel = NotificationChannel(
+                channelId,
+                "Overlay Background Service",
+                NotificationManager.IMPORTANCE_MIN
+            )
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+
+            val notification = NotificationCompat.Builder(this, channelId)
+                .setContentTitle("Matrix Overlay Active")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .build()
+            
+            startForeground(1338, notification)
+        }
+
         showFloatingView(title, body)
         return START_NOT_STICKY
     }
@@ -68,12 +91,7 @@ class ScreenOverlayService : Service() {
             overlayView = null
         }
 
-        val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        val layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -85,41 +103,42 @@ class ScreenOverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = 40
+            y = 60
         }
 
-        val context = this
-        val view = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(40, 30, 40, 30)
-            setBackgroundColor(0xEE141414.toInt())
-            
-            addView(TextView(context).apply {
-                text = titleText
-                setTextColor(0xFF00E676.toInt())
-                textSize = 16f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-            })
-
-            addView(TextView(context).apply {
-                text = bodyText
-                setTextColor(0xFFFFFFFF.toInt())
-                textSize = 14f
-                setPadding(0, 6, 0, 0)
-            })
-        }
-
-        overlayView = view
         try {
-            windowManager.addView(view, params)
-            Log.d(TAG, "Successfully added overlay view to WindowManager")
+            val context = applicationContext
+            val view = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(50, 40, 50, 40)
+                setBackgroundColor(0xEE1A1A1A.toInt()) // Solid dark theme background
+                
+                addView(TextView(context).apply {
+                    text = titleText
+                    setTextColor(0xFF00E676.toInt()) // Bright teal accent
+                    textSize = 18f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                })
 
+                addView(TextView(context).apply {
+                    text = bodyText
+                    setTextColor(0xFFFFFFFF.toInt()) // White body text
+                    textSize = 15f
+                    setPadding(0, 8, 0, 0)
+                })
+            }
+
+            overlayView = view
+            windowManager.addView(view, params)
+            Log.d(TAG, "SUCCESS: Overlay view added to WindowManager.")
+
+            // Auto-dismiss the direct screen drawing after 4 seconds
             handler.postDelayed({
                 Log.d(TAG, "Auto-dismiss timer triggered, removing overlay view")
                 removeOverlay()
             }, 4000)
         } catch (e: Exception) {
-            Log.e(TAG, "CRITICAL: Failed to add overlay view to WindowManager. Did you grant SYSTEM_ALERT_WINDOW?", e)
+            Log.e(TAG, "CRITICAL EXCEPTION in showFloatingView: ${e.message}", e)
         }
     }
 
@@ -128,7 +147,7 @@ class ScreenOverlayService : Service() {
             overlayView?.let {
                 windowManager.removeView(it)
                 overlayView = null
-                Log.d(TAG, "Overlay view successfully removed")
+                Log.d(TestTags.TAG, "Overlay view successfully removed")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error during overlay removal", e)
